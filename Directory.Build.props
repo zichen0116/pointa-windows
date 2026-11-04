@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Version>0.1.0</Version>
+    <Authors>Pointa contributors</Authors>
+    <Product>映点 Pointa</Product>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+</Project>

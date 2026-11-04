@@ -1,0 +1,38 @@
+name: Windows build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build
+        shell: pwsh
+        run: ./scripts/build.ps1
+      - name: Self-tests
+        shell: pwsh
+        run: ./scripts/test.ps1
+      - name: Package self-contained ZIP and Setup
+        shell: pwsh
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6/ISCC.exe'
+          if (-not (Test-Path -LiteralPath $iscc)) { throw 'This runner is missing Inno Setup 6.' }
+          ./scripts/publish.ps1 -Iscc $iscc
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Pointa-windows-x64
+          path: |
+            artifacts/Pointa-*-win-x64.zip
+            artifacts/Pointa-*-Setup.exe
+          if-no-files-found: error
+          retention-days: 14
