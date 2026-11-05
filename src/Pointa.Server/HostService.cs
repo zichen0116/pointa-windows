@@ -38,6 +38,7 @@ public sealed class HostService : IAsyncDisposable
     private PointerState latestPointer = new(.5, .5, false);
     private long lastSlide;
     private long lastRemoteEffect;
+    private DisplayInfo? display;
 
     public event Action<PointerState>? PointerChanged;
     public event Action<LaserEffect>? EffectChanged;
@@ -48,6 +49,7 @@ public sealed class HostService : IAsyncDisposable
     public IReadOnlyList<PairedDevice> Devices { get { lock (gate) return store.Devices; } }
     public PairedDevice? ConnectedDevice { get { lock (gate) return controller?.Device; } }
     public LaserEffect Effect { get { lock (gate) return store.Effect; } }
+    public DisplayInfo? Display { get { lock (gate) return display; } }
 
     public HostService(HostOptions options, Func<PairingRequest, CancellationToken, Task<bool>> approve)
     {
@@ -177,6 +179,13 @@ public sealed class HostService : IAsyncDisposable
         EffectChanged?.Invoke(effect);
     }
 
+    public void SetDisplay(DisplayInfo? value)
+    {
+        if (value is not null && (value.Width <= 0 || value.Height <= 0))
+            throw new ArgumentException("Display dimensions must be positive.", nameof(value));
+        lock (gate) display = value;
+    }
+
     private async Task HandleConnectionAsync(HttpContext context)
     {
         if (context.Connection.RemoteIpAddress is not { } remoteAddress || !IsLocal(remoteAddress))
@@ -218,7 +227,7 @@ public sealed class HostService : IAsyncDisposable
             }
             PointerChanged?.Invoke(hidden);
             authenticationSlots.Release(); ownsSlot = false;
-            await SendAsync(socket, new { v = 1, type = "session.ready", deviceId = device.Id, time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), effect = Effect }, cancellation.Token);
+            await SendAsync(socket, new { v = 1, type = "session.ready", deviceId = device.Id, time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), effect = Effect, display = Display }, cancellation.Token);
             StateChanged?.Invoke();
             var guard = new SessionGuard();
             while (!cancellation.IsCancellationRequested)
@@ -329,7 +338,7 @@ public sealed class HostService : IAsyncDisposable
         var type = Text(root, "type", 32);
         switch (type)
         {
-            case "heartbeat": return new { v = 1, type = "heartbeat.ack", time = now };
+            case "heartbeat": return new { v = 1, type = "heartbeat.ack", time = now, display };
             case "pointer.move":
                 var x = Number(root, "x"); var y = Number(root, "y");
                 if (x is < 0 or > 1 || y is < 0 or > 1 || !root.TryGetProperty("active", out var active) || active.ValueKind is not (JsonValueKind.True or JsonValueKind.False))

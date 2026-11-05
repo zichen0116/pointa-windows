@@ -31,3 +31,9 @@
 Android 实现及 C#/Java 协议互通、真实扫码和双端连接；PowerPoint/WPS/Canva/PDF 实际翻页；双显示器热插拔、100/125/150% 缩放及 4K/HDR/整屏与单窗共享；休眠恢复的系统级测试；10 分钟空闲 CPU/内存、端到端 P95 延迟、30 轮真机断线恢复；干净机器安装/升级/卸载；代码签名；协议独立安全审查。
 
 因此本版只能称为 Windows 开发验证版，不代表已经达到 PRD 的成熟产品发布门槛。完整待办见 [验收矩阵](acceptance.md)，Android 按 [协议](protocol.md) 和 [交接说明](android-handoff.md) 进入下一阶段。
+
+## Android 接入增量（2026-11-05）
+
+增加可选 `display`（真实目标显示器宽高/未知为 null），放入 session.ready 与 heartbeat.ack；客户端可跟随屏幕切换调整全屏触控比例，协议版本仍为兼容的 v1。Windows 自测增加到 322 个断言，全部通过；新增测试专用 InteropHost 只绑定回环地址、使用临时 DPAPI 数据和标准输入命令，不进入安装包、不注入系统按键。
+
+Android 已完成 JVM→C# QR/SRP/resume/revoke/控制/显示器变化的真实互通，以及 Android 16.1 模拟器→C# 的 SRP/Keystore/恢复/撤销和 MainActivity 全流程。参见同级 Android 仓库 `docs/validation.md`。配套 Windows ZIP/Setup 已重新构建，正式投影、物理扫码和硬件性能门槛仍未因此验收。

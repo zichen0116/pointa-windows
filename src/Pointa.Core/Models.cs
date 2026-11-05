@@ -1,6 +1,7 @@
 namespace Pointa.Core;
 
 public sealed record PointerState(double X, double Y, bool Active, long Revision = 0);
+public sealed record DisplayInfo(int Width, int Height);
 public sealed record LaserEffect(string Color = "#FF6475", int Size = 16, int TrailMs = 500, string Smoothing = "standard")
 {
     public bool IsValid => Color is { Length: 7 } && Color[0] == '#' && Color.Skip(1).All(Uri.IsHexDigit) &&

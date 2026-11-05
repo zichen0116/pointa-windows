@@ -68,6 +68,10 @@ internal static class Program
         var allow = true;
         var approvals = 0;
         await using var host = new HostService(options, (_, _) => { approvals++; return Task.FromResult(allow); });
+        Check(host.Display is null, "unknown display is not fabricated");
+        try { host.SetDisplay(new(0, 1080)); Check(false, "invalid display denied"); }
+        catch (ArgumentException) { Check(host.Display is null, "invalid display denied"); }
+        host.SetDisplay(new(2560, 1440));
         var pointer = new PointerState(.5, .5, false);
         var slides = 0;
         host.PointerChanged += value => pointer = value;
@@ -117,7 +121,18 @@ internal static class Program
             Check(approved.GetProperty("type").GetString() == "pair.approved" && approvals == 1, "QR PC approved");
             deviceId = approved.GetProperty("deviceId").GetString()!;
             credential = approved.GetProperty("credential").GetString()!;
-            Check((await client.Receive()).GetProperty("type").GetString() == "session.ready", "QR controller ready");
+            var ready = await client.Receive();
+            Check(ready.GetProperty("type").GetString() == "session.ready", "QR controller ready");
+            Check(ready.GetProperty("display").GetProperty("width").GetInt32() == 2560 &&
+                ready.GetProperty("display").GetProperty("height").GetInt32() == 1440, "selected display in ready");
+            host.SetDisplay(new(1080, 1920));
+            await client.Control("heartbeat");
+            var heartbeat = await client.Receive();
+            Check(heartbeat.GetProperty("display").GetProperty("width").GetInt32() == 1080 &&
+                heartbeat.GetProperty("display").GetProperty("height").GetInt32() == 1920, "hotplug display in heartbeat");
+            host.SetDisplay(null);
+            await client.Control("heartbeat");
+            Check((await client.Receive()).GetProperty("display").ValueKind == JsonValueKind.Null, "missing display stays null on wire");
             Check(host.Devices.Count == 1 && host.ConnectedDevice?.Id == deviceId, "device recorded");
             Check(host.Pairing.QrToken != initial.QrToken, "one time pairing rotated");
             await client.Control("pointer.move", new() { ["x"] = .25, ["y"] = .75, ["active"] = true });

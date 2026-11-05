@@ -37,6 +37,7 @@ internal sealed class PointaContext : ApplicationContext
         overlay.RenderingFailed += (_, error) => { lastDiagnostic = error; form.SetOverlayStatus(T("覆盖层绘制失败", "Overlay rendering failed")); };
         overlay.ScreenChanged += (_, _) =>
         {
+            UpdateDisplay();
             if (settings.ScreenName != overlay.SelectedScreenName)
             {
                 settings.ScreenName = overlay.SelectedScreenName;
@@ -151,6 +152,7 @@ internal sealed class PointaContext : ApplicationContext
             });
             current.Diagnostic += text => Dispatch(() => { lastDiagnostic = text; });
             host = current;
+            UpdateDisplay();
             current.SetEffect(new LaserEffect(settings.LaserColor, settings.LaserSize, settings.TrailMs, settings.Smoothing));
             await current.StartAsync();
             RefreshUi();
@@ -207,6 +209,12 @@ internal sealed class PointaContext : ApplicationContext
         var pairing = host.Pairing;
         form.UpdatePairing(pairing.QrPayload, pairing.Code, pairing.ExpiresAt, addresses.Any(x => !IPAddress.IsLoopback(x)), host.ConnectedDevice?.Name);
         tray.Text = host.ConnectedDevice is null ? "映点 Pointa" : T("映点 · 手机已连接", "Pointa · Phone connected");
+    }
+
+    private void UpdateDisplay()
+    {
+        var screen = Screen.AllScreens.FirstOrDefault(x => x.DeviceName == overlay.SelectedScreenName);
+        host?.SetDisplay(screen is null ? null : new DisplayInfo(screen.Bounds.Width, screen.Bounds.Height));
     }
 
     private void BuildTray()
