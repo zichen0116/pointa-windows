@@ -99,8 +99,14 @@ internal sealed class PointaContext : ApplicationContext
             var previous = host;
             host = null;
             if (previous is not null) await previous.DisposeAsync();
-            addresses = smokeDirectory is not null ? [IPAddress.Loopback] : NetworkPolicy.GetAddresses(settings.AllowPublicNetworks);
-            var current = new HostService(new HostOptions(directory, addresses, Environment.MachineName), ApproveAsync);
+            addresses = smokeDirectory is not null ? [IPAddress.Loopback] : NetworkPolicy.GetAddresses();
+            var port = 32145;
+            if (smokeDirectory is not null)
+            {
+                var probe = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+                probe.Start(); port = ((IPEndPoint)probe.LocalEndpoint).Port; probe.Stop();
+            }
+            var current = new HostService(new HostOptions(directory, addresses, Environment.MachineName, port, smokeDirectory is null ? 32146 : 0), ApproveAsync);
             PointerState? latestPointer = null;
             var pointerGate = new object();
             var pointerQueued = 0;
@@ -189,7 +195,7 @@ internal sealed class PointaContext : ApplicationContext
         if (smokeDirectory is null && !restarting && DateTimeOffset.UtcNow >= nextNetworkCheck)
         {
             nextNetworkCheck = DateTimeOffset.UtcNow.AddSeconds(10);
-            var allowed = NetworkPolicy.GetAddresses(settings.AllowPublicNetworks);
+            var allowed = NetworkPolicy.GetAddresses();
             if (!new HashSet<IPAddress>(allowed).SetEquals(addresses)) { _ = RestartServerAsync(); return; }
         }
         if (armAt is not null && DateTimeOffset.UtcNow >= armAt)
@@ -207,7 +213,7 @@ internal sealed class PointaContext : ApplicationContext
     {
         if (host is null || exiting) return;
         var pairing = host.Pairing;
-        form.UpdatePairing(pairing.QrPayload, pairing.Code, pairing.ExpiresAt, addresses.Any(x => !IPAddress.IsLoopback(x)), host.ConnectedDevice?.Name);
+        form.UpdatePairing(pairing.QrPayload, pairing.Code, pairing.ExpiresAt, addresses.Any(x => !IPAddress.IsLoopback(x)), host.ConnectedDevice?.Name, pairing.Host);
         tray.Text = host.ConnectedDevice is null ? "映点 Pointa" : T("映点 · 手机已连接", "Pointa · Phone connected");
     }
 
@@ -256,14 +262,14 @@ internal sealed class PointaContext : ApplicationContext
     private void OpenSettings()
     {
         var pairing = host?.Pairing;
-        var diagnostic = $"Pointa 0.1.0 · {Environment.OSVersion}\r\n" +
+        var diagnostic = $"Pointa {Application.ProductVersion.Split('+')[0]} · {Environment.OSVersion}\r\n" +
             $"TLS port: {pairing?.Port ?? 32145} / UDP: 32146\r\n" +
             $"LAN: {string.Join(", ", addresses.Where(x => !IPAddress.IsLoopback(x)))}\r\n" +
             $"Display: {overlay.SelectedScreenName}\r\n" +
             $"Target: {presentation.TargetDescription}\r\n" +
             $"Status: {lastDiagnostic ?? "OK"}\r\n" +
             T("只共享应用窗口时可能看不到激光；请共享整个屏幕。", "Application-only sharing may omit the laser; share the whole screen.");
-        bool networkChanged = false, languageChanged = false;
+        bool languageChanged = false;
         var redacted = System.Text.RegularExpressions.Regex.Replace(diagnostic, @"\b(\d{1,3}\.\d{1,3}\.)\d{1,3}\.\d{1,3}\b", "$1*.*")
             .Replace(presentation.TargetDescription, T("已隐藏窗口标题", "Window title redacted"))
             .Replace(directory, "[Pointa data]");
@@ -272,7 +278,6 @@ internal sealed class PointaContext : ApplicationContext
             next.ApplyStartup();
             try { next.Save(directory); }
             catch { settings.ApplyStartup(); throw; }
-            networkChanged = next.AllowPublicNetworks != settings.AllowPublicNetworks;
             languageChanged = next.Language != settings.Language;
             settings = next;
             overlay.SelectScreen(settings.ScreenName);
@@ -291,7 +296,7 @@ internal sealed class PointaContext : ApplicationContext
             if (wasVisible) form.Show();
             BuildTray();
         }
-        if (networkChanged || host is null) _ = RestartServerAsync();
+        if (host is null) _ = RestartServerAsync();
         else RefreshUi();
     }
 
@@ -331,6 +336,26 @@ internal sealed class PointaContext : ApplicationContext
             if (host is null) throw new InvalidOperationException("Server startup failed: " + lastDiagnostic);
             NativeSelfCheck.Run();
             NativeSelfCheck.RunOverlayChecks();
+            var available = NetworkPolicy.GetAddresses();
+            if (!available.Contains(IPAddress.Loopback) || available.Any(ip => !IPAddress.IsLoopback(ip) && !NetworkPolicy.IsLanV4(ip)))
+                throw new InvalidOperationException("Network selection escaped the LAN boundary.");
+            if (NetworkPolicy.IsLanV4(IPAddress.Parse("8.8.8.8")) || NetworkPolicy.IsLanV4(IPAddress.IPv6Any))
+                throw new InvalidOperationException("Public address accepted.");
+            File.WriteAllLines(Path.Combine(smokeDirectory!, "network-addresses.txt"), available.Select(ip => ip.ToString()));
+            foreach (var (protocol, port, label) in new[] { (6, "32145", "TCP"), (17, "32146", "UDP") })
+            {
+                object rule = FirewallAccess.CreateRule(protocol, port, label);
+                try
+                {
+                    dynamic entry = rule;
+                    if (!string.Equals((string)entry.ApplicationName, Environment.ProcessPath, StringComparison.OrdinalIgnoreCase) ||
+                        (int)entry.Protocol != protocol || (string)entry.LocalPorts != port ||
+                        !string.Equals((string)entry.RemoteAddresses, "LocalSubnet", StringComparison.OrdinalIgnoreCase) ||
+                        (int)entry.Direction != 1 || (int)entry.Profiles != 7 || (int)entry.Action != 1 || !(bool)entry.Enabled)
+                        throw new InvalidOperationException("Firewall rule escaped the application/subnet/port boundary.");
+                }
+                finally { System.Runtime.InteropServices.Marshal.ReleaseComObject(rule); }
+            }
             var settingsDirectory = Path.Combine(smokeDirectory!, "settings-check");
             var sample = new AppSettings { LaserColor = "#32B894", TrailMs = 800, Language = "en" };
             sample.Save(settingsDirectory);
@@ -343,13 +368,13 @@ internal sealed class PointaContext : ApplicationContext
             using (var icon = Ui.CreateIcon())
             using (var iconFile = File.Create(Path.Combine(smokeDirectory!, "Pointa.ico"))) icon.Save(iconFile);
             var p = host.Pairing;
-            form.UpdatePairing(p.QrPayload, p.Code, p.ExpiresAt, true, null);
+            form.UpdatePairing(p.QrPayload, p.Code, p.ExpiresAt, true, null, p.Host);
             form.SavePreview(Path.Combine(smokeDirectory!, "pairing-window.png"));
             using (var english = new PairingForm(new AppSettings { Language = "en" }))
             {
                 _ = english.Handle;
                 english.Show();
-                english.UpdatePairing(p.QrPayload, p.Code, p.ExpiresAt, true, null);
+                english.UpdatePairing(p.QrPayload, p.Code, p.ExpiresAt, true, null, p.Host);
                 english.SavePreview(Path.Combine(smokeDirectory!, "pairing-window-en.png"));
             }
             using (var options = new SettingsForm(settings, "Pointa smoke test · loopback only", _ => { }))
@@ -365,7 +390,7 @@ internal sealed class PointaContext : ApplicationContext
             await Task.Delay(100);
             overlay.HidePointer(true);
             if (Cursor.Position != beforeMouse) throw new InvalidOperationException("Pointer moved the system cursor.");
-            File.WriteAllText(Path.Combine(smokeDirectory!, "smoke-result.txt"), "PASS: host started; native structs, mapping, foreground policies, overlay styles/focus/mouse/idle/expiry checks passed; settings persistence and corrupt-file preservation passed; Chinese/English pairing + settings rendered.");
+            File.WriteAllText(Path.Combine(smokeDirectory!, "smoke-result.txt"), "PASS: host started; LAN selection and uninstalled firewall rule scope checked without changing firewall policy; native structs, mapping, foreground policies, overlay styles/focus/mouse/idle/expiry checks passed; settings persistence and corrupt-file preservation passed; Chinese/English pairing + settings rendered.");
         }
         catch (Exception ex)
         {

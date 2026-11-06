@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.1.1"
 #endif
 #ifndef PublishDir
   #define PublishDir "..\artifacts\win-x64"
@@ -42,6 +42,7 @@ Name: "{userprograms}\Pointa\Uninstall Pointa"; Filename: "{uninstallexe}"
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "Pointa"; Flags: uninsdeletevalue
 
 [Run]
+Filename: "{app}\Pointa.exe"; Parameters: "--shutdown"; Flags: runhidden waituntilterminated
 Filename: "{app}\Pointa.exe"; Description: "Launch Pointa / 启动映点"; Flags: postinstall nowait skipifsilent unchecked
 
 [Code]

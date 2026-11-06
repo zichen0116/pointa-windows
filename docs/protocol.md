@@ -7,7 +7,7 @@ The in-process `PointerChanged` callback includes a monotonically increasing `Re
 ## Transport and discovery
 
 - TLS 1.2 or 1.3, `wss://<IPv4>:32145/ws`, UTF-8 JSON text messages only. No HTTP or plaintext WebSocket fallback. The server rejects WebSocket requests containing an `Origin` header; browser clients are outside this version.
-- Windows chooses explicit IPv4 loopback/RFC1918 addresses on approved Windows network profiles. Kestrel never listens on wildcard/public addresses and rejects non-LAN source addresses. Address changes rebuild the listener; the Windows application also rechecks network profiles every ten seconds, so a Public/Private change without an IP change takes effect within that interval.
+- Windows 0.1.1 chooses explicit loopback/RFC1918 IPv4 addresses on active Wi-Fi and gateway-bearing Ethernet interfaces, prioritizing Wi-Fi. Windows Public/Private labels do not suppress LAN pairing. Kestrel never listens on wildcard/public IP addresses and rejects non-LAN source addresses. Address changes rebuild the listener; a ten-second check also catches interface changes. Optional user-invoked firewall setup opens only this executable's TCP 32145/UDP 32146 to LocalSubnet, following Windows administrator approval.
 - UDP port **32146** accepts exactly the 19 ASCII bytes `POINTA_DISCOVER_V1\n` (one final LF), unicast or LAN broadcast. Response goes to the requester's source port. The UDP socket binds Any to receive broadcasts, but accepts only loopback/private source addresses on interfaces containing a caller-approved local address. It replies at most ten times/second globally. No token, code, or trusted certificate pin is advertised.
 
 ```json

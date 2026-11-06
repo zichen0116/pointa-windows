@@ -37,3 +37,14 @@ Android 实现及 C#/Java 协议互通、真实扫码和双端连接；PowerPoin
 增加可选 `display`（真实目标显示器宽高/未知为 null），放入 session.ready 与 heartbeat.ack；客户端可跟随屏幕切换调整全屏触控比例，协议版本仍为兼容的 v1。Windows 自测增加到 322 个断言，全部通过；新增测试专用 InteropHost 只绑定回环地址、使用临时 DPAPI 数据和标准输入命令，不进入安装包、不注入系统按键。
 
 Android 已完成 JVM→C# QR/SRP/resume/revoke/控制/显示器变化的真实互通，以及 Android 16.1 模拟器→C# 的 SRP/Keystore/恢复/撤销和 MainActivity 全流程。参见同级 Android 仓库 `docs/validation.md`。配套 Windows ZIP/Setup 已重新构建，正式投影、物理扫码和硬件性能门槛仍未因此验收。
+
+## 0.1.1 连接与界面修复（2026-11-06）
+
+- 根因：原安装版本把 Windows Public 类别的 Wi-Fi 排除，只监听回环，导致二维码隐藏且手动 IP 也无法连接。现在按实际 Wi-Fi／有默认网关的有线网卡选择私有 IPv4，仍拒绝公网／通配地址，并排除本机无网关的虚拟网卡。
+- 配对窗新增可复制的电脑 IP；设置中的防火墙按钮仅在用户点击并通过 UAC 后配置当前程序、TCP32145/UDP32146、LocalSubnet 来源的规则。
+- Release 构建 0 警告、0 错误；服务自测 322 项断言通过。原生/UI smoke 通过，并新增实际网卡选择、公网地址拒绝及待安装 COM 防火墙规则字段自检。自检只构造规则对象，未写入防火墙。
+- 已备份并原位更新实际运行的便携安装，保留用户设置与设备授权。旧进程未响应 20 秒退出请求，核实路径后结束旧进程；新版本正常退出返回 0，重新启动成功。
+- 新进程同时监听回环和当前 WLAN 私有地址；从本机 WLAN 地址访问 HTTPS WebSocket 入口得到预期的未升级请求响应。随后用实际窗口截图确认 QR、可复制 IP 及“已连接手机”状态。该观察证明当前手机连接建立，不等于已完成扫码方式、持续控制或多网络验收。
+- 本机防火墙策略保持原状；提权配置规则、取消 UAC、企业策略冲突尚未实测。配套 Android 的固定主页、弹层和空中指针结果见其 `docs/validation.md`。
+
+证据保存在忽略目录 `artifacts/v0.1.1-ui-smoke/`、`artifacts/v0.1.1-installed-validation.json`；原安装备份为 `artifacts/installed-Pointa-0.1.0-backup-20261106-094034.zip`。分发文件为 `Pointa-0.1.1-Setup.exe` 与 `Pointa-0.1.1-win-x64.zip`，仍为未签名开发验证版。

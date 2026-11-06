@@ -9,6 +9,8 @@ internal sealed class PairingForm : Form
     private readonly Label status, code, expiry, footer, ready, detail, host;
     private readonly PictureBox qr;
     private readonly Button disconnect;
+    private readonly LinkLabel address;
+    private string? currentAddress;
     private string? currentQr;
     private string currentCode = "";
     public event EventHandler? RefreshRequested;
@@ -29,8 +31,18 @@ internal sealed class PairingForm : Form
         host = Ui.Label(Environment.MachineName, 8);
         host.ForeColor = Ui.Muted;
         host.SetBounds(20, 44, 325, 20);
+        address = new LinkLabel { Font = new Font("Microsoft YaHei UI", 8), LinkColor = Ui.Green,
+            LinkBehavior = LinkBehavior.HoverUnderline, TextAlign = ContentAlignment.MiddleLeft,
+            AccessibleName = T("电脑 IP，点击复制", "Computer IP, click to copy") };
+        address.SetBounds(20, 64, 325, 20);
+        address.LinkClicked += (_, _) =>
+        {
+            if (currentAddress is null) return;
+            try { Clipboard.SetText(currentAddress); footer.Text = T("已复制电脑 IP", "IP address copied"); }
+            catch (System.Runtime.InteropServices.ExternalException) { footer.Text = T("剪贴板忙，请重试", "Clipboard busy; retry"); }
+        };
         qr = new PictureBox { BackColor = Color.White, SizeMode = PictureBoxSizeMode.Zoom, AccessibleName = T("扫描此二维码配对", "Scan this QR code to pair") };
-        qr.SetBounds(18, 74, 159, 159);
+        qr.SetBounds(18, 88, 159, 159);
         qr.Cursor = Cursors.Hand;
         qr.Click += (_, _) =>
         {
@@ -44,26 +56,26 @@ internal sealed class PairingForm : Form
         };
         var hint = Ui.Label(T("临时设备码", "Pairing code"), 8);
         hint.ForeColor = Ui.Muted;
-        hint.SetBounds(193, 83, 153, 22);
+        hint.SetBounds(193, 96, 153, 22);
         code = Ui.Label("··· ···", 21, true);
-        code.SetBounds(190, 107, 161, 45);
+        code.SetBounds(190, 120, 161, 45);
         expiry = Ui.Label("", 8);
         expiry.ForeColor = Ui.Muted;
-        expiry.SetBounds(193, 152, 155, 22);
+        expiry.SetBounds(193, 165, 155, 22);
         var copy = Ui.Button(T("复制设备码", "Copy code"), (_, _) =>
         {
             if (currentCode.Length == 0) return;
             try { Clipboard.SetText(currentCode); footer.Text = T("已复制设备码", "Code copied"); }
             catch (System.Runtime.InteropServices.ExternalException) { footer.Text = T("剪贴板忙，请重试", "Clipboard busy; retry"); }
         });
-        copy.SetBounds(193, 182, 150, 32);
+        copy.SetBounds(193, 195, 150, 32);
         var card = new Card();
-        card.SetBounds(19, 250, 327, 65);
+        card.SetBounds(19, 259, 327, 56);
         ready = Ui.Label(T("激光覆盖层已就绪", "Laser overlay ready"), 9, true);
-        ready.SetBounds(13, 8, 301, 24);
+        ready.SetBounds(13, 4, 301, 24);
         detail = Ui.Label(T("支持鼠标穿透 · 无需置顶窗口", "Click-through · Keep your slides focused"), 7.5f);
         detail.ForeColor = Ui.Muted;
-        detail.SetBounds(13, 32, 301, 24);
+        detail.SetBounds(13, 28, 301, 22);
         card.Controls.AddRange([ready, detail]);
         var devices = Ui.Button(T("设备管理", "Devices"), (_, _) => DevicesRequested?.Invoke(this, EventArgs.Empty));
         devices.SetBounds(19, 327, 99, 30);
@@ -78,7 +90,7 @@ internal sealed class PairingForm : Form
         footer.SetBounds(18, 378, 213, 25);
         var refresh = Ui.Button(T("刷新配对码", "Refresh code"), (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty));
         refresh.SetBounds(235, 377, 111, 27);
-        Controls.AddRange([status, host, qr, hint, code, expiry, copy, card, devices, config, disconnect, line, footer, refresh]);
+        Controls.AddRange([status, host, address, qr, hint, code, expiry, copy, card, devices, config, disconnect, line, footer, refresh]);
         FormClosing += (_, e) =>
         {
             if (!Exiting && e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; Hide(); }
@@ -87,18 +99,21 @@ internal sealed class PairingForm : Form
         Ui.Finish(this);
     }
 
-    public void UpdatePairing(string payload, string pairingCode, DateTimeOffset expiresAt, bool lanAvailable, string? connectedName)
+    public void UpdatePairing(string payload, string pairingCode, DateTimeOffset expiresAt, bool lanAvailable, string? connectedName, string? ipAddress = null)
     {
         currentCode = pairingCode;
         code.Text = pairingCode.Length == 6 ? pairingCode[..3] + " " + pairingCode[3..] : "··· ···";
         var seconds = Math.Max(0, (int)(expiresAt - DateTimeOffset.UtcNow).TotalSeconds);
         expiry.Text = T($"{seconds / 60:00}:{seconds % 60:00} 后过期", $"Expires in {seconds / 60:00}:{seconds % 60:00}");
         status.Text = connectedName is not null ? T("● 已连接手机", "● Phone connected") :
-            lanAvailable ? T("● 等待手机连接", "● Waiting for your phone") : T("● 尚未启用局域网", "● Local network is disabled");
+            lanAvailable ? T("● 等待手机连接", "● Waiting for your phone") : T("● 未找到局域网地址", "● No local network address");
         status.ForeColor = lanAvailable ? Ui.Green : Ui.Ink;
         host.Text = connectedName is not null ? $"{Environment.MachineName}  ·  {connectedName}" : Environment.MachineName;
+        currentAddress = lanAvailable ? ipAddress : null;
+        address.Text = currentAddress is not null ? T($"电脑 IP：{currentAddress}  ·  点击复制", $"Computer IP: {currentAddress} · Copy") : T("请连接 Wi-Fi 或有线网络", "Connect to Wi-Fi or Ethernet");
+        address.Enabled = currentAddress is not null;
         disconnect.Enabled = connectedName is not null;
-        footer.Text = lanAvailable ? T("局域网 · 加密连接", "Local network · Encrypted") : T("请在设置中选择可信网络", "Enable a trusted network in Settings");
+        footer.Text = lanAvailable ? T("局域网 · 加密连接", "Local network · Encrypted") : T("请检查电脑网络连接", "Check the computer's connection");
         qr.Visible = lanAvailable;
         if (currentQr == payload) return;
         using var data = QRCodeGenerator.GenerateQrCode(payload, QRCodeGenerator.ECCLevel.M);

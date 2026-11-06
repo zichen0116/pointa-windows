@@ -18,9 +18,9 @@ internal sealed class SettingsForm : Form
         AddRow(T("激光显示器", "Laser display"), display, 62);
         var startup = new CheckBox { Text = T("登录 Windows 时启动（收进托盘）", "Start with Windows (in the tray)"), Checked = settings.StartWithWindows, AutoSize = true };
         startup.SetBounds(22, 110, 420, 26);
-        var publicNetwork = new CheckBox { Text = T("允许公共网络连接（仅在可信 Wi-Fi 启用）", "Allow public networks (trusted Wi-Fi only)"), Checked = settings.AllowPublicNetworks, AutoSize = true };
-        publicNetwork.SetBounds(22, 145, 426, 26);
-        var networkHint = Ui.Label(T("默认仅私有网络。防火墙未放行或访客 Wi-Fi 隔离时，\n请使用私人热点；更改网络选项会断开当前手机。", "Private networks by default. Firewall rules or guest Wi-Fi\nisolation may block pairing. Network changes disconnect the phone."), 8);
+        var firewall = Ui.Button(T("设置防火墙（需管理员确认）", "Configure firewall (administrator approval)"), (_, _) => FirewallAccess.Request(this, settings));
+        firewall.SetBounds(22, 145, 426, 30);
+        var networkHint = Ui.Label(T("自动启用 Wi-Fi／有线局域网，不受“公用”分类影响。\n仅允许映点端口与本地子网；访客网络隔离可改用热点。", "Wi-Fi / Ethernet also works on Public profiles.\nFirewall access is limited to Pointa ports and the local subnet."), 8);
         networkHint.ForeColor = Ui.Muted;
         networkHint.SetBounds(22, 176, 426, 43);
         var colors = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
@@ -64,7 +64,7 @@ internal sealed class SettingsForm : Form
             var updated = new AppSettings
             {
                 Language = language.SelectedIndex == 0 ? "zh" : "en", ScreenName = screens[display.SelectedIndex].DeviceName,
-                StartWithWindows = startup.Checked, AllowPublicNetworks = publicNetwork.Checked,
+                StartWithWindows = startup.Checked,
                 LaserColor = colorValues[colors.SelectedIndex], LaserSize = (int)size.Value, TrailMs = (int)trail.Value,
                 Smoothing = smoothingValues[smoothing.SelectedIndex],
             };
@@ -73,7 +73,7 @@ internal sealed class SettingsForm : Form
             { MessageBox.Show(this, T("保存失败：", "Could not save: ") + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error); }
         });
         apply.SetBounds(350, 542, 98, 32);
-        Controls.AddRange([startup, publicNetwork, networkHint, advanced, info, copy, defaults, cancel, apply]);
+        Controls.AddRange([startup, firewall, networkHint, advanced, info, copy, defaults, cancel, apply]);
         AcceptButton = apply;
         CancelButton = cancel;
         Ui.Finish(this);

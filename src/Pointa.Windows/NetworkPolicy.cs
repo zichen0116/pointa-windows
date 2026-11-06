@@ -1,54 +1,27 @@
-using System.Collections;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
 
 namespace Pointa.Windows;
 
 internal static class NetworkPolicy
 {
-    public static IReadOnlyList<IPAddress> GetAddresses(bool allowPublic)
+    public static IReadOnlyList<IPAddress> GetAddresses()
     {
-        var trusted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        object? manager = null;
-        try
-        {
-            var type = Type.GetTypeFromCLSID(new Guid("DCB00C01-570F-4A9B-8D69-199FDBA5723B"), throwOnError: true)!;
-            manager = Activator.CreateInstance(type)!;
-            foreach (dynamic network in (IEnumerable)((dynamic)manager).GetNetworks(1))
-            {
-                try
-                {
-                    if (!allowPublic && (int)network.GetCategory() == 0) continue;
-                    foreach (dynamic connection in (IEnumerable)network.GetNetworkConnections())
-                    {
-                        try { trusted.Add(((Guid)connection.GetAdapterId()).ToString("B")); }
-                        finally { Marshal.ReleaseComObject(connection); }
-                    }
-                }
-                finally { Marshal.ReleaseComObject(network); }
-            }
-        }
-        catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
-        {
-            // Fail closed when Windows cannot identify a trusted network profile.
-        }
-        finally { if (manager is not null) Marshal.ReleaseComObject(manager); }
-
-        var addresses = new List<IPAddress> { IPAddress.Loopback };
-        foreach (var adapter in NetworkInterface.GetAllNetworkInterfaces())
-        {
-            if (adapter.OperationalStatus != OperationalStatus.Up ||
-                adapter.NetworkInterfaceType == NetworkInterfaceType.Loopback ||
-                (!allowPublic && !trusted.Contains(adapter.Id))) continue;
-            addresses.AddRange(adapter.GetIPProperties().UnicastAddresses
-                .Select(x => x.Address).Where(IsLanV4));
-        }
-        return addresses.Distinct().ToArray();
+        var adapters = NetworkInterface.GetAllNetworkInterfaces()
+            .Where(adapter => adapter.OperationalStatus == OperationalStatus.Up &&
+                adapter.NetworkInterfaceType is NetworkInterfaceType.Wireless80211 or NetworkInterfaceType.Ethernet or NetworkInterfaceType.GigabitEthernet)
+            .Select(adapter => new { Adapter = adapter, Properties = adapter.GetIPProperties() })
+            .Where(item => item.Adapter.NetworkInterfaceType == NetworkInterfaceType.Wireless80211 ||
+                item.Properties.GatewayAddresses.Any(gateway => gateway.Address.AddressFamily == AddressFamily.InterNetwork && !gateway.Address.Equals(IPAddress.Any)))
+            .OrderBy(item => item.Adapter.NetworkInterfaceType == NetworkInterfaceType.Wireless80211 ? 0 : 1)
+            .ThenBy(item => item.Properties.GatewayAddresses.Count == 0 ? 1 : 0);
+        // Public is common on home Wi-Fi; TLS, pairing approval and subnet firewall rules protect this listener.
+        return new[] { IPAddress.Loopback }.Concat(adapters.SelectMany(item => item.Properties.UnicastAddresses)
+            .Select(item => item.Address).Where(IsLanV4)).Distinct().ToArray();
     }
 
-    private static bool IsLanV4(IPAddress address)
+    internal static bool IsLanV4(IPAddress address)
     {
         if (address.AddressFamily != AddressFamily.InterNetwork) return false;
         var bytes = address.GetAddressBytes();

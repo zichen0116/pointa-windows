@@ -8,6 +8,13 @@ internal static class Program
     private static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
+        if (args.Contains("--configure-firewall"))
+        {
+            try { FirewallAccess.ConfigureCurrentExecutable(); }
+            catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or UnauthorizedAccessException or InvalidOperationException)
+            { Environment.ExitCode = 1; }
+            return;
+        }
         var smokeIndex = Array.IndexOf(args, "--smoke-test");
         var smoke = smokeIndex >= 0 && smokeIndex + 1 < args.Length ? Path.GetFullPath(args[smokeIndex + 1]) : null;
         var data = smoke is null ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Pointa") : Path.Combine(smoke, "data");

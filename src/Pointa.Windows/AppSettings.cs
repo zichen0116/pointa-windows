@@ -9,7 +9,6 @@ internal sealed class AppSettings
     public string Language { get; set; } = CultureInfo.CurrentUICulture.Name.StartsWith("zh") ? "zh" : "en";
     public string? ScreenName { get; set; }
     public bool StartWithWindows { get; set; }
-    public bool AllowPublicNetworks { get; set; }
     public string LaserColor { get; set; } = "#FF6475";
     public int LaserSize { get; set; } = 16;
     public int TrailMs { get; set; } = 500;
