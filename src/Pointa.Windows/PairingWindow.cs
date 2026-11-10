@@ -35,6 +35,7 @@ internal sealed class PairingWindow : DesktopWindow
             catch (System.Runtime.InteropServices.ExternalException) { ClipboardBusy(); }
         });
         address.HorizontalAlignment = W.HorizontalAlignment.Left;
+        System.Windows.Automation.AutomationProperties.SetName(address, T("复制电脑 IP", "Copy computer IP"));
         address.Margin = new W.Thickness(0, 8, 0, 16);
         qr = new C.Image { Width = 176, Height = 176, Stretch = System.Windows.Media.Stretch.Uniform };
         System.Windows.Media.RenderOptions.SetBitmapScalingMode(qr, System.Windows.Media.BitmapScalingMode.NearestNeighbor);
