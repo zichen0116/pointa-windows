@@ -21,7 +21,7 @@ internal sealed class ApprovalForm : Form
         method.SetBounds(22, 127, 346, 25);
         var reject = Ui.Button(T("拒绝", "Deny"), (_, _) => { decision.TrySetResult(false); Close(); });
         reject.SetBounds(22, 172, 164, 34);
-        var allow = Ui.Button(T("允许配对", "Allow pairing"), (_, _) => { decision.TrySetResult(true); Close(); });
+        var allow = Ui.Button(T("允许配对", "Allow pairing"), (_, _) => { decision.TrySetResult(true); Close(); }, primary: true);
         allow.SetBounds(204, 172, 164, 34);
         Controls.AddRange([title, body, method, reject, allow]);
         CancelButton = reject;

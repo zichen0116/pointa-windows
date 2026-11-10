@@ -67,7 +67,6 @@ internal sealed class PointaContext : ApplicationContext
         window.RefreshRequested += (_, _) => { host?.RefreshPairing(); RefreshUi(); };
         window.DisconnectRequested += (_, _) => { host?.Disconnect(); overlay.HidePointer(true); };
         window.SettingsRequested += (_, _) => OpenSettings();
-        window.DevicesRequested += (_, _) => OpenDevices();
         return window;
     }
 
@@ -239,20 +238,7 @@ internal sealed class PointaContext : ApplicationContext
             Notify(T("选择演示窗口", "Choose presentation window"), T("请在 3 秒内切换到浏览器或 PDF 演示。", "Switch to your browser or PDF presentation within 3 seconds."));
         });
         menu.Items.Add(T("取消窗口授权", "Clear presentation window"), null, (_, _) => presentation.ClearTarget());
-        var displays = new ToolStripMenuItem(T("激光显示器", "Laser display"));
-        displays.DropDownOpening += (_, _) =>
-        {
-            displays.DropDownItems.Clear();
-            foreach (var screen in Screen.AllScreens)
-            {
-                var item = new ToolStripMenuItem($"{screen.DeviceName} · {screen.Bounds.Width} × {screen.Bounds.Height}") { Checked = screen.DeviceName == overlay.SelectedScreenName };
-                item.Click += (_, _) => { overlay.SelectScreen(screen.DeviceName); settings.ScreenName = screen.DeviceName; TrySaveSettings(); };
-                displays.DropDownItems.Add(item);
-            }
-        };
-        menu.Items.Add(displays);
-        menu.Items.Add(T("设备管理", "Devices"), null, (_, _) => OpenDevices());
-        menu.Items.Add(T("设置与连接帮助", "Settings and connection help"), null, (_, _) => OpenSettings());
+        menu.Items.Add(T("设置", "Settings"), null, (_, _) => OpenSettings());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(T("退出映点", "Quit Pointa"), null, async (_, _) => await QuitAsync());
         tray.ContextMenuStrip?.Dispose();
@@ -261,29 +247,16 @@ internal sealed class PointaContext : ApplicationContext
 
     private void OpenSettings()
     {
-        var pairing = host?.Pairing;
-        var diagnostic = $"Pointa {Application.ProductVersion.Split('+')[0]} · {Environment.OSVersion}\r\n" +
-            $"TLS port: {pairing?.Port ?? 32145} / UDP: 32146\r\n" +
-            $"LAN: {string.Join(", ", addresses.Where(x => !IPAddress.IsLoopback(x)))}\r\n" +
-            $"Display: {overlay.SelectedScreenName}\r\n" +
-            $"Target: {presentation.TargetDescription}\r\n" +
-            $"Status: {lastDiagnostic ?? "OK"}\r\n" +
-            T("只共享应用窗口时可能看不到激光；请共享整个屏幕。", "Application-only sharing may omit the laser; share the whole screen.");
         bool languageChanged = false;
-        var redacted = System.Text.RegularExpressions.Regex.Replace(diagnostic, @"\b(\d{1,3}\.\d{1,3}\.)\d{1,3}\.\d{1,3}\b", "$1*.*")
-            .Replace(presentation.TargetDescription, T("已隐藏窗口标题", "Window title redacted"))
-            .Replace(directory, "[Pointa data]");
-        using var dialog = new SettingsForm(settings, diagnostic, next =>
+        using var dialog = new SettingsForm(settings, () => host, (language, startup) =>
         {
+            var next = settings.WithGeneralPreferences(language, startup);
             next.ApplyStartup();
             try { next.Save(directory); }
             catch { settings.ApplyStartup(); throw; }
             languageChanged = next.Language != settings.Language;
             settings = next;
-            overlay.SelectScreen(settings.ScreenName);
-            overlay.UpdateEffect(settings.LaserColor, settings.LaserSize, settings.TrailMs, settings.Smoothing);
-            host?.SetEffect(new LaserEffect(settings.LaserColor, settings.LaserSize, settings.TrailMs, settings.Smoothing));
-        }, redacted);
+        });
         if (dialog.ShowDialog(form.Visible ? form : null) != DialogResult.OK) return;
         if (languageChanged)
         {
@@ -298,13 +271,6 @@ internal sealed class PointaContext : ApplicationContext
         }
         if (host is null) _ = RestartServerAsync();
         else RefreshUi();
-    }
-
-    private void OpenDevices()
-    {
-        if (host is null) return;
-        using var dialog = new DevicesForm(settings, host);
-        dialog.ShowDialog(form.Visible ? form : null);
     }
 
     private void TrySaveSettings()
@@ -360,6 +326,14 @@ internal sealed class PointaContext : ApplicationContext
             var sample = new AppSettings { LaserColor = "#32B894", TrailMs = 800, Language = "en" };
             sample.Save(settingsDirectory);
             if (AppSettings.Load(settingsDirectory).LaserColor != sample.LaserColor) throw new InvalidOperationException("Settings round trip failed.");
+            sample.ScreenName = "preserved-display";
+            sample.LaserSize = 24;
+            sample.Smoothing = "high";
+            var general = sample.WithGeneralPreferences("zh", true);
+            if (general.Language != "zh" || !general.StartWithWindows || sample.Language != "en" || sample.StartWithWindows ||
+                general.LaserColor != sample.LaserColor || general.LaserSize != sample.LaserSize || general.TrailMs != sample.TrailMs ||
+                general.Smoothing != sample.Smoothing || general.ScreenName != sample.ScreenName)
+                throw new InvalidOperationException("Desktop settings overwrote phone-controlled laser preferences.");
             File.WriteAllText(Path.Combine(settingsDirectory, "settings.json"), "{broken");
             bool corruptRejected = false;
             try { AppSettings.Load(settingsDirectory); } catch (System.Text.Json.JsonException) { corruptRejected = true; }
@@ -369,28 +343,40 @@ internal sealed class PointaContext : ApplicationContext
             using (var iconFile = File.Create(Path.Combine(smokeDirectory!, "Pointa.ico"))) icon.Save(iconFile);
             var p = host.Pairing;
             form.UpdatePairing(p.QrPayload, p.Code, p.ExpiresAt, true, null, p.Host);
+            CheckPairingLayout(form);
             form.SavePreview(Path.Combine(smokeDirectory!, "pairing-window.png"));
             using (var english = new PairingForm(new AppSettings { Language = "en" }))
             {
                 _ = english.Handle;
                 english.Show();
                 english.UpdatePairing(p.QrPayload, p.Code, p.ExpiresAt, true, null, p.Host);
+                CheckPairingLayout(english);
                 english.SavePreview(Path.Combine(smokeDirectory!, "pairing-window-en.png"));
             }
-            using (var options = new SettingsForm(settings, "Pointa smoke test · loopback only", _ => { }))
+            foreach (var language in new[] { "zh", "en" })
             {
+                string? savedLanguage = null;
+                using var options = new SettingsForm(new AppSettings { Language = language }, () => host, (selected, _) => savedLanguage = selected);
                 _ = options.Handle;
                 options.Show();
-                using var bitmap = new Bitmap(options.Width, options.Height);
-                options.DrawToBitmap(bitmap, new Rectangle(0, 0, options.Width, options.Height));
-                bitmap.Save(Path.Combine(smokeDirectory!, "settings-window.png"));
+                var devices = new[] { new PairedDevice("preview", "演示手机 · Presentation phone", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow) };
+                options.RenderDevices(devices, "preview");
+                SaveWindow(options, Path.Combine(smokeDirectory!, $"settings-window-{language}.png"));
+                var controls = Descendants(options).ToArray();
+                if (controls.OfType<ComboBox>().Count() != 1 || controls.OfType<CheckBox>().Count() != 1 ||
+                    controls.OfType<NumericUpDown>().Any() || controls.OfType<TextBox>().Any() || !controls.Any(x => x.Name == "trusted-devices"))
+                    throw new InvalidOperationException("Settings contains removed controls or lacks devices.");
+                options.RenderDevices([], null);
+                SaveWindow(options, Path.Combine(smokeDirectory!, $"settings-empty-{language}.png"));
+                ((Button)controls.Single(x => x.Name == "save-settings")).PerformClick();
+                if (savedLanguage != language) throw new InvalidOperationException("Settings Save was not invoked.");
             }
             var beforeMouse = Cursor.Position;
             overlay.MovePointer(.25, .75);
             await Task.Delay(100);
             overlay.HidePointer(true);
             if (Cursor.Position != beforeMouse) throw new InvalidOperationException("Pointer moved the system cursor.");
-            File.WriteAllText(Path.Combine(smokeDirectory!, "smoke-result.txt"), "PASS: host started; LAN selection and uninstalled firewall rule scope checked without changing firewall policy; native structs, mapping, foreground policies, overlay styles/focus/mouse/idle/expiry checks passed; settings persistence and corrupt-file preservation passed; Chinese/English pairing + settings rendered.");
+            File.WriteAllText(Path.Combine(smokeDirectory!, "smoke-result.txt"), "PASS: host started; LAN selection and uninstalled firewall rule scope checked without changing firewall policy; native structs, mapping, foreground policies, overlay styles/focus/mouse/idle/expiry checks passed; settings persistence, corrupt-file preservation and phone effect preservation passed; refresh placement, simplified settings and Save checked; Chinese/English pairing + merged settings rendered.");
         }
         catch (Exception ex)
         {
@@ -398,6 +384,26 @@ internal sealed class PointaContext : ApplicationContext
             File.WriteAllText(Path.Combine(smokeDirectory!, "smoke-result.txt"), "FAIL: " + ex);
         }
         await QuitAsync();
+    }
+
+    private static IEnumerable<Control> Descendants(Control parent) => parent.Controls.Cast<Control>()
+        .SelectMany(child => new[] { child }.Concat(Descendants(child)));
+
+    private static void CheckPairingLayout(PairingForm window)
+    {
+        var controls = Descendants(window).ToArray();
+        var refresh = controls.Single(x => x.Name == "refresh-pairing");
+        var settings = controls.Single(x => x.Name == "open-settings");
+        if (refresh.Parent?.Name != "overlay-status" || refresh.Left <= refresh.Parent.Width / 2 ||
+            refresh.Parent.Bottom >= settings.Top || window.Controls.OfType<Button>().Count() != 2)
+            throw new InvalidOperationException("Pairing actions are in the wrong position.");
+    }
+
+    private static void SaveWindow(Form window, string path)
+    {
+        using var bitmap = new Bitmap(window.Width, window.Height);
+        window.DrawToBitmap(bitmap, new Rectangle(0, 0, window.Width, window.Height));
+        bitmap.Save(path);
     }
 
     private async Task QuitAsync()

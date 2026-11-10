@@ -10,6 +10,7 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Assets/Pointa.ico" />
     <ProjectReference Include="../Pointa.Core/Pointa.Core.csproj" />
     <ProjectReference Include="../Pointa.Server/Pointa.Server.csproj" />
     <PackageReference Include="QRCoder" Version="1.7.0" />

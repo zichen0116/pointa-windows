@@ -1,33 +1,35 @@
 using System.Drawing.Drawing2D;
-using System.Runtime.InteropServices;
 
 namespace Pointa.Windows;
 
 internal static class Ui
 {
-    public static readonly Color Ink = ColorTranslator.FromHtml("#243145");
-    public static readonly Color Muted = ColorTranslator.FromHtml("#7E8BA0");
-    public static readonly Color Surface = ColorTranslator.FromHtml("#F5F8FB");
+    public static readonly Color Ink = ColorTranslator.FromHtml("#172236");
+    public static readonly Color Muted = ColorTranslator.FromHtml("#68758A");
+    public static readonly Color Canvas = ColorTranslator.FromHtml("#F3F5F9");
+    public static readonly Color Surface = Color.White;
+    public static readonly Color Stroke = ColorTranslator.FromHtml("#DFE5EE");
     public static readonly Color Accent = ColorTranslator.FromHtml("#F87581");
-    public static readonly Color Green = ColorTranslator.FromHtml("#239B79");
+    public static readonly Color Green = ColorTranslator.FromHtml("#16876B");
 
     public static Label Label(string text, float size = 9, bool bold = false) => new()
     {
-        Text = text, AutoSize = false, ForeColor = Ink, BackColor = Color.Transparent,
+        Text = text, AutoSize = false, AutoEllipsis = true,
+        ForeColor = SystemInformation.HighContrast ? SystemColors.ControlText : Ink, BackColor = Color.Transparent,
         Font = new Font("Microsoft YaHei UI", size, bold ? FontStyle.Bold : FontStyle.Regular),
         TextAlign = ContentAlignment.MiddleLeft,
-        AccessibleName = text,
     };
 
-    public static Button Button(string text, EventHandler? action = null)
+    public static Button Button(string text, EventHandler? action = null, bool primary = false)
     {
-        var button = new Button
+        var button = new ModernButton
         {
-            Text = text, AccessibleName = text, AutoSize = false, BackColor = Surface,
-            ForeColor = Ink, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
-            Font = new Font("Microsoft YaHei UI", 8.5f), UseVisualStyleBackColor = false,
+            Text = text, AccessibleName = text, AutoSize = false,
+            BackColor = primary ? Ink : Surface, ForeColor = primary ? Color.White : Ink,
+            FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+            Font = new Font("Microsoft YaHei UI", 9), UseVisualStyleBackColor = false,
         };
-        button.FlatAppearance.BorderColor = ColorTranslator.FromHtml("#E1E7F1");
+        button.FlatAppearance.BorderSize = 0;
         if (action is not null) button.Click += action;
         return button;
     }
@@ -37,13 +39,14 @@ internal static class Ui
         form.SuspendLayout();
         form.Text = title;
         form.Font = new Font("Microsoft YaHei UI", 9);
-        form.BackColor = Color.White;
+        form.BackColor = SystemInformation.HighContrast ? SystemColors.Control : Canvas;
         form.ForeColor = Ink;
         form.ClientSize = size;
         form.StartPosition = FormStartPosition.CenterScreen;
         form.FormBorderStyle = FormBorderStyle.FixedSingle;
         form.MaximizeBox = false;
         form.Icon = CreateIcon();
+        form.Disposed += (_, _) => form.Icon?.Dispose();
     }
 
     public static void Finish(Form form)
@@ -53,44 +56,79 @@ internal static class Ui
         form.ResumeLayout(true);
     }
 
-    public static Icon CreateIcon()
+    public static Icon CreateIcon(int size = 32)
     {
-        using var bitmap = new Bitmap(32, 32);
-        using var graphics = Graphics.FromImage(bitmap);
-        graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        graphics.Clear(Color.Transparent);
-        using var dark = new SolidBrush(Ink);
-        using var pink = new SolidBrush(Accent);
-        using var white = new SolidBrush(Color.White);
-        graphics.FillEllipse(dark, 0, 0, 31, 31);
-        using var pen = new Pen(Accent, 2.5f);
-        graphics.DrawArc(pen, 7, 7, 18, 18, 35, 280);
-        graphics.FillEllipse(pink, 12, 12, 8, 8);
-        graphics.FillEllipse(white, 15, 14, 2, 2);
-        var handle = bitmap.GetHicon();
-        try { return (Icon)Icon.FromHandle(handle).Clone(); }
-        finally { DestroyIcon(handle); }
+        using var stream = typeof(Ui).Assembly.GetManifestResourceStream("Pointa.Windows.Assets.Pointa.ico")
+            ?? throw new InvalidOperationException("Pointa icon resource is missing.");
+        using var icon = new Icon(stream, size, size);
+        return (Icon)icon.Clone();
     }
 
-    [DllImport("user32.dll")] private static extern bool DestroyIcon(IntPtr handle);
+    internal static GraphicsPath RoundedRectangle(Rectangle bounds, int radius)
+    {
+        var diameter = Math.Max(1, Math.Min(radius * 2, Math.Min(bounds.Width, bounds.Height)));
+        var path = new GraphicsPath();
+        path.AddArc(bounds.Left, bounds.Top, diameter, diameter, 180, 90);
+        path.AddArc(bounds.Right - diameter, bounds.Top, diameter, diameter, 270, 90);
+        path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
+        path.AddArc(bounds.Left, bounds.Bottom - diameter, diameter, diameter, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+}
+
+internal sealed class ModernButton : Button
+{
+    private bool hovered, pressed;
+    public ModernButton() => DoubleBuffered = true;
+    protected override void OnMouseEnter(EventArgs e) { hovered = true; Invalidate(); base.OnMouseEnter(e); }
+    protected override void OnMouseLeave(EventArgs e) { hovered = pressed = false; Invalidate(); base.OnMouseLeave(e); }
+    protected override void OnMouseDown(MouseEventArgs e) { pressed = e.Button == MouseButtons.Left; Invalidate(); base.OnMouseDown(e); }
+    protected override void OnMouseUp(MouseEventArgs e) { pressed = false; Invalidate(); base.OnMouseUp(e); }
+    protected override void OnKeyDown(KeyEventArgs e) { if (e.KeyCode == Keys.Space) { pressed = true; Invalidate(); } base.OnKeyDown(e); }
+    protected override void OnKeyUp(KeyEventArgs e) { pressed = false; Invalidate(); base.OnKeyUp(e); }
+    protected override void OnLostFocus(EventArgs e) { pressed = false; Invalidate(); base.OnLostFocus(e); }
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        if (Width < 2 || Height < 2) return;
+        var highContrast = SystemInformation.HighContrast;
+        var background = highContrast ? SystemColors.Control : BackColor;
+        var foreground = highContrast ? SystemColors.ControlText : Enabled ? ForeColor : Ui.Muted;
+        e.Graphics.Clear(Parent?.BackColor ?? Ui.Canvas);
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using var shape = Ui.RoundedRectangle(new Rectangle(0, 0, Width - 1, Height - 1), 10 * DeviceDpi / 96);
+        using var fill = new SolidBrush(background);
+        e.Graphics.FillPath(fill, shape);
+        if (Enabled && (hovered || pressed))
+        {
+            using var tint = new SolidBrush(Color.FromArgb(pressed ? 24 : 12, foreground));
+            e.Graphics.FillPath(tint, shape);
+        }
+        using var border = new Pen(highContrast ? SystemColors.ControlText : BackColor == Ui.Ink ? Ui.Ink : Ui.Stroke);
+        e.Graphics.DrawPath(border, shape);
+        TextRenderer.DrawText(e.Graphics, Text, Font, ClientRectangle, foreground,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+        if (Focused && ShowFocusCues)
+        {
+            var focus = ClientRectangle;
+            focus.Inflate(-5 * DeviceDpi / 96, -5 * DeviceDpi / 96);
+            ControlPaint.DrawFocusRectangle(e.Graphics, focus, foreground, background);
+        }
+    }
 }
 
 internal sealed class Card : Panel
 {
-    public Card() { DoubleBuffered = true; BackColor = Color.White; Padding = new Padding(12); }
+    public Card() { DoubleBuffered = true; BackColor = SystemInformation.HighContrast ? SystemColors.Window : Ui.Surface; }
     protected override void OnPaintBackground(PaintEventArgs e)
     {
-        e.Graphics.Clear(BackColor);
+        if (Width < 2 || Height < 2) return;
+        e.Graphics.Clear(Parent?.BackColor ?? Ui.Canvas);
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var path = new GraphicsPath();
-        var radius = Math.Max(12, 20 * DeviceDpi / 96);
-        var rect = new Rectangle(0, 0, Width - 1, Height - 1);
-        path.AddArc(rect.Left, rect.Top, radius, radius, 180, 90);
-        path.AddArc(rect.Right - radius, rect.Top, radius, radius, 270, 90);
-        path.AddArc(rect.Right - radius, rect.Bottom - radius, radius, radius, 0, 90);
-        path.AddArc(rect.Left, rect.Bottom - radius, radius, radius, 90, 90);
-        path.CloseFigure();
-        using var fill = new SolidBrush(Ui.Surface);
+        using var path = Ui.RoundedRectangle(new Rectangle(0, 0, Width - 1, Height - 1), 16 * DeviceDpi / 96);
+        using var fill = new SolidBrush(BackColor);
         e.Graphics.FillPath(fill, path);
+        using var border = new Pen(SystemInformation.HighContrast ? SystemColors.WindowText : Ui.Stroke);
+        e.Graphics.DrawPath(border, path);
     }
 }

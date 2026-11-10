@@ -14,6 +14,14 @@ internal sealed class AppSettings
     public int TrailMs { get; set; } = 500;
     public string Smoothing { get; set; } = "standard";
 
+    public AppSettings WithGeneralPreferences(string language, bool startup)
+    {
+        var next = (AppSettings)MemberwiseClone();
+        next.Language = language;
+        next.StartWithWindows = startup;
+        return next;
+    }
+
     public static AppSettings Load(string directory)
     {
         var path = Path.Combine(directory, "settings.json");
