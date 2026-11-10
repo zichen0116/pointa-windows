@@ -8,7 +8,7 @@ namespace Pointa.Windows;
 
 internal static class FirewallAccess
 {
-    public static async void Request(Form owner, AppSettings settings)
+    public static async void Request(DesktopWindow owner, AppSettings settings)
     {
         try
         {
@@ -16,13 +16,13 @@ internal static class FirewallAccess
             { UseShellExecute = true, Verb = "runas", Arguments = "--configure-firewall", WindowStyle = ProcessWindowStyle.Hidden });
             if (process is null) return;
             await process.WaitForExitAsync();
-            if (!owner.IsDisposed) MessageBox.Show(owner,
+            if (!owner.IsClosed) Ui.Message(owner,
                 process.ExitCode == 0 ? settings.T("已允许此程序的局域网端口访问。请在手机上重新连接。", "Pointa's local subnet ports are allowed. Retry on your phone.") :
-                    settings.T("无法修改防火墙，请联系管理员检查网络策略。", "Firewall setup failed. Ask your administrator to check network policies."), "Pointa");
+                    settings.T("无法修改防火墙，请联系管理员检查网络策略。", "Firewall setup failed. Ask your administrator to check network policies."));
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223) { }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
-        { if (!owner.IsDisposed) MessageBox.Show(owner, ex.Message, "Pointa"); }
+        { if (!owner.IsClosed) Ui.Message(owner, ex.Message); }
     }
 
     public static void ConfigureCurrentExecutable()

@@ -32,7 +32,7 @@ try {
     }
     & $dotnetExecutable publish src/Pointa.Windows/Pointa.Windows.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=false -p:PublishTrimmed=false --output $publishDirectory --nologo
     if ($LASTEXITCODE -ne 0) { throw "Publish failed (exit $LASTEXITCODE)." }
-    foreach ($file in @('Pointa.exe', 'coreclr.dll', 'hostfxr.dll', 'Microsoft.AspNetCore.Server.Kestrel.Core.dll')) {
+    foreach ($file in @('Pointa.exe', 'coreclr.dll', 'hostfxr.dll', 'Microsoft.AspNetCore.Server.Kestrel.Core.dll', 'PresentationFramework.Fluent.dll', 'PresentationCore.dll')) {
         if (-not (Test-Path -LiteralPath (Join-Path $publishDirectory $file))) { throw "Incomplete self-contained publish: $file is missing." }
     }
 

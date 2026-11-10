@@ -1,61 +1,74 @@
-using System.Drawing.Drawing2D;
+using System.Windows.Automation;
+using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using W = System.Windows;
+using C = System.Windows.Controls;
 
 namespace Pointa.Windows;
 
 internal static class Ui
 {
-    public static readonly Color Ink = ColorTranslator.FromHtml("#172236");
-    public static readonly Color Muted = ColorTranslator.FromHtml("#68758A");
-    public static readonly Color Canvas = ColorTranslator.FromHtml("#F3F5F9");
-    public static readonly Color Surface = Color.White;
-    public static readonly Color Stroke = ColorTranslator.FromHtml("#DFE5EE");
-    public static readonly Color Accent = ColorTranslator.FromHtml("#F87581");
-    public static readonly Color Green = ColorTranslator.FromHtml("#16876B");
-
-    public static Label Label(string text, float size = 9, bool bold = false) => new()
+    public static void UseTheme(string mode)
     {
-        Text = text, AutoSize = false, AutoEllipsis = true,
-        ForeColor = SystemInformation.HighContrast ? SystemColors.ControlText : Ink, BackColor = Color.Transparent,
-        Font = new Font("Microsoft YaHei UI", size, bold ? FontStyle.Bold : FontStyle.Regular),
-        TextAlign = ContentAlignment.MiddleLeft,
-    };
+        var file = mode switch { "System" => "Fluent", "Dark" => "Fluent.Dark", "Light" => "Fluent.Light", _ => throw new ArgumentOutOfRangeException(nameof(mode)) };
+        var resources = W.Application.Current.Resources.MergedDictionaries;
+        resources.Clear();
+        resources.Add(new W.ResourceDictionary { Source = new Uri($"pack://application:,,,/PresentationFramework.Fluent;component/Themes/{file}.xaml") });
+    }
 
-    public static Button Button(string text, EventHandler? action = null, bool primary = false)
+    public static C.TextBlock Text(string text, double size = 14, bool bold = false, bool muted = false)
     {
-        var button = new ModernButton
-        {
-            Text = text, AccessibleName = text, AutoSize = false,
-            BackColor = primary ? Ink : Surface, ForeColor = primary ? Color.White : Ink,
-            FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
-            Font = new Font("Microsoft YaHei UI", 9), UseVisualStyleBackColor = false,
-        };
-        button.FlatAppearance.BorderSize = 0;
-        if (action is not null) button.Click += action;
+        var block = new C.TextBlock { Text = text, FontSize = size, FontWeight = bold ? W.FontWeights.SemiBold : W.FontWeights.Normal,
+            TextTrimming = W.TextTrimming.CharacterEllipsis, VerticalAlignment = W.VerticalAlignment.Center };
+        block.SetResourceReference(C.TextBlock.ForegroundProperty, muted ? "TextFillColorSecondaryBrush" : "TextFillColorPrimaryBrush");
+        return block;
+    }
+
+    public static C.Button Button(string text, Action action, bool primary = false)
+    {
+        var button = new C.Button { Content = text, MinHeight = 36, Padding = new W.Thickness(14, 6, 14, 6), HorizontalAlignment = W.HorizontalAlignment.Stretch };
+        AutomationProperties.SetName(button, text);
+        if (primary) button.SetResourceReference(W.FrameworkElement.StyleProperty, "AccentButtonStyle");
+        button.Click += (_, _) => action();
         return button;
     }
 
-    public static void Configure(Form form, string title, Size size)
+    public static C.StackPanel Stack(params W.UIElement[] children)
     {
-        form.SuspendLayout();
-        form.Text = title;
-        form.Font = new Font("Microsoft YaHei UI", 9);
-        form.BackColor = SystemInformation.HighContrast ? SystemColors.Control : Canvas;
-        form.ForeColor = Ink;
-        form.ClientSize = size;
-        form.StartPosition = FormStartPosition.CenterScreen;
-        form.FormBorderStyle = FormBorderStyle.FixedSingle;
-        form.MaximizeBox = false;
-        form.Icon = CreateIcon();
-        form.Disposed += (_, _) => form.Icon?.Dispose();
+        var panel = new C.StackPanel();
+        foreach (var child in children) panel.Children.Add(child);
+        return panel;
     }
 
-    public static void Finish(Form form)
+    public static C.Grid Row(W.UIElement left, W.UIElement right, double rightWidth = double.NaN)
     {
-        form.AutoScaleDimensions = new SizeF(96, 96);
-        form.AutoScaleMode = AutoScaleMode.Dpi;
-        form.ResumeLayout(true);
+        var grid = new C.Grid();
+        grid.ColumnDefinitions.Add(new() { Width = new W.GridLength(1, W.GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new() { Width = new W.GridLength(16) });
+        grid.ColumnDefinitions.Add(new() { Width = double.IsNaN(rightWidth) ? W.GridLength.Auto : new W.GridLength(rightWidth) });
+        C.Grid.SetColumn(right, 2);
+        grid.Children.Add(left); grid.Children.Add(right);
+        return grid;
     }
 
+    public static C.Border Card(W.UIElement content)
+    {
+        var card = new C.Border { Child = content, Padding = new W.Thickness(16), CornerRadius = new W.CornerRadius(8),
+            BorderThickness = new W.Thickness(1), Margin = new W.Thickness(0, 0, 0, 16) };
+        card.SetResourceReference(C.Border.BackgroundProperty, "CardBackgroundFillColorDefaultBrush");
+        card.SetResourceReference(C.Border.BorderBrushProperty, "CardStrokeColorDefaultBrush");
+        return card;
+    }
+
+    public static C.Border Body(W.UIElement content)
+    {
+        var body = new C.Border { Child = content, Padding = new W.Thickness(24) };
+        body.SetResourceReference(C.Border.BackgroundProperty, "ApplicationBackgroundBrush");
+        return body;
+    }
+
+    public static BitmapImage Logo() => new(new Uri("pack://application:,,,/Pointa;component/Assets/Pointa.png"));
     public static Icon CreateIcon(int size = 32)
     {
         using var stream = typeof(Ui).Assembly.GetManifestResourceStream("Pointa.Windows.Assets.Pointa.ico")
@@ -64,71 +77,43 @@ internal static class Ui
         return (Icon)icon.Clone();
     }
 
-    internal static GraphicsPath RoundedRectangle(Rectangle bounds, int radius)
+    public static BitmapImage Png(byte[] png)
     {
-        var diameter = Math.Max(1, Math.Min(radius * 2, Math.Min(bounds.Width, bounds.Height)));
-        var path = new GraphicsPath();
-        path.AddArc(bounds.Left, bounds.Top, diameter, diameter, 180, 90);
-        path.AddArc(bounds.Right - diameter, bounds.Top, diameter, diameter, 270, 90);
-        path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
-        path.AddArc(bounds.Left, bounds.Bottom - diameter, diameter, diameter, 90, 90);
-        path.CloseFigure();
-        return path;
+        using var stream = new MemoryStream(png);
+        var bitmap = new BitmapImage();
+        bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad; bitmap.StreamSource = stream; bitmap.EndInit(); bitmap.Freeze();
+        return bitmap;
     }
+
+    public static void SavePreview(W.FrameworkElement element, string path)
+    {
+        element.UpdateLayout();
+        var dpi = VisualTreeHelper.GetDpi(element);
+        var bitmap = new RenderTargetBitmap(Math.Max(1, (int)Math.Ceiling(element.ActualWidth * dpi.DpiScaleX)),
+            Math.Max(1, (int)Math.Ceiling(element.ActualHeight * dpi.DpiScaleY)), dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
+        bitmap.Render(element);
+        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var output = File.Create(path); encoder.Save(output);
+    }
+
+    public static void Message(W.Window owner, string message) => W.MessageBox.Show(owner, message, "Pointa");
+    public static bool Confirm(W.Window owner, string message) => W.MessageBox.Show(owner, message, owner.Title,
+        W.MessageBoxButton.YesNo, W.MessageBoxImage.Question, W.MessageBoxResult.No) == W.MessageBoxResult.Yes;
 }
 
-internal sealed class ModernButton : Button
+internal class DesktopWindow : W.Window, IDisposable
 {
-    private bool hovered, pressed;
-    public ModernButton() => DoubleBuffered = true;
-    protected override void OnMouseEnter(EventArgs e) { hovered = true; Invalidate(); base.OnMouseEnter(e); }
-    protected override void OnMouseLeave(EventArgs e) { hovered = pressed = false; Invalidate(); base.OnMouseLeave(e); }
-    protected override void OnMouseDown(MouseEventArgs e) { pressed = e.Button == MouseButtons.Left; Invalidate(); base.OnMouseDown(e); }
-    protected override void OnMouseUp(MouseEventArgs e) { pressed = false; Invalidate(); base.OnMouseUp(e); }
-    protected override void OnKeyDown(KeyEventArgs e) { if (e.KeyCode == Keys.Space) { pressed = true; Invalidate(); } base.OnKeyDown(e); }
-    protected override void OnKeyUp(KeyEventArgs e) { pressed = false; Invalidate(); base.OnKeyUp(e); }
-    protected override void OnLostFocus(EventArgs e) { pressed = false; Invalidate(); base.OnLostFocus(e); }
-    protected override void OnPaint(PaintEventArgs e)
+    public bool Exiting { get; set; }
+    public bool IsClosed { get; private set; }
+    public IntPtr Handle => new WindowInteropHelper(this).EnsureHandle();
+    public DesktopWindow(string title, double width)
     {
-        if (Width < 2 || Height < 2) return;
-        var highContrast = SystemInformation.HighContrast;
-        var background = highContrast ? SystemColors.Control : BackColor;
-        var foreground = highContrast ? SystemColors.ControlText : Enabled ? ForeColor : Ui.Muted;
-        e.Graphics.Clear(Parent?.BackColor ?? Ui.Canvas);
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var shape = Ui.RoundedRectangle(new Rectangle(0, 0, Width - 1, Height - 1), 10 * DeviceDpi / 96);
-        using var fill = new SolidBrush(background);
-        e.Graphics.FillPath(fill, shape);
-        if (Enabled && (hovered || pressed))
-        {
-            using var tint = new SolidBrush(Color.FromArgb(pressed ? 24 : 12, foreground));
-            e.Graphics.FillPath(tint, shape);
-        }
-        using var border = new Pen(highContrast ? SystemColors.ControlText : BackColor == Ui.Ink ? Ui.Ink : Ui.Stroke);
-        e.Graphics.DrawPath(border, shape);
-        TextRenderer.DrawText(e.Graphics, Text, Font, ClientRectangle, foreground,
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
-        if (Focused && ShowFocusCues)
-        {
-            var focus = ClientRectangle;
-            focus.Inflate(-5 * DeviceDpi / 96, -5 * DeviceDpi / 96);
-            ControlPaint.DrawFocusRectangle(e.Graphics, focus, foreground, background);
-        }
+        SetResourceReference(StyleProperty, typeof(W.Window));
+        Title = title; Width = width; SizeToContent = W.SizeToContent.Height;
+        ResizeMode = W.ResizeMode.CanMinimize; WindowStartupLocation = W.WindowStartupLocation.CenterScreen;
+        FontFamily = new System.Windows.Media.FontFamily("Segoe UI Variable, Microsoft YaHei UI"); FontSize = 14;
+        Icon = Ui.Logo(); UseLayoutRounding = true; SnapsToDevicePixels = true;
+        Closed += (_, _) => IsClosed = true;
     }
-}
-
-internal sealed class Card : Panel
-{
-    public Card() { DoubleBuffered = true; BackColor = SystemInformation.HighContrast ? SystemColors.Window : Ui.Surface; }
-    protected override void OnPaintBackground(PaintEventArgs e)
-    {
-        if (Width < 2 || Height < 2) return;
-        e.Graphics.Clear(Parent?.BackColor ?? Ui.Canvas);
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var path = Ui.RoundedRectangle(new Rectangle(0, 0, Width - 1, Height - 1), 16 * DeviceDpi / 96);
-        using var fill = new SolidBrush(BackColor);
-        e.Graphics.FillPath(fill, path);
-        using var border = new Pen(SystemInformation.HighContrast ? SystemColors.WindowText : Ui.Stroke);
-        e.Graphics.DrawPath(border, path);
-    }
+    public void Dispose() { Exiting = true; if (!IsClosed) Close(); GC.SuppressFinalize(this); }
 }

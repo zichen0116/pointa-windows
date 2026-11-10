@@ -38,10 +38,13 @@ internal static class Program
         {
             Directory.CreateDirectory(data);
             var settings = AppSettings.Load(data);
+            var application = new System.Windows.Application { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
+            Ui.UseTheme("System");
+            System.Windows.Forms.Integration.WindowsFormsHost.EnableWindowsFormsInterop();
             using var context = new PointaContext(data, settings, args.Contains("--background"), smoke);
             var wait = ThreadPool.RegisterWaitForSingleObject(activate, (_, _) => context.Dispatch(context.ShowPairing), null, Timeout.Infinite, false);
             var stopWait = ThreadPool.RegisterWaitForSingleObject(shutdown, (_, _) => context.Dispatch(context.RequestQuit), null, Timeout.Infinite, false);
-            try { Application.Run(context); }
+            try { application.Run(); }
             finally { wait.Unregister(null); stopWait.Unregister(null); }
         }
         catch (Exception ex)

@@ -3,6 +3,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/Pointa.ico</ApplicationIcon>
     <AssemblyName>Pointa</AssemblyName>
@@ -10,7 +11,9 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>
   <ItemGroup>
+    <Using Include="System.IO" />
     <EmbeddedResource Include="Assets/Pointa.ico" />
+    <Resource Include="Assets/Pointa.png" />
     <ProjectReference Include="../Pointa.Core/Pointa.Core.csproj" />
     <ProjectReference Include="../Pointa.Server/Pointa.Server.csproj" />
     <PackageReference Include="QRCoder" Version="1.7.0" />

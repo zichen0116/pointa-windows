@@ -4,13 +4,16 @@ using Microsoft.Win32;
 using Pointa.Core;
 using Pointa.Server;
 using Pointa.Windows.Native;
+using W = System.Windows;
 
 namespace Pointa.Windows;
 
 internal sealed class PointaContext : ApplicationContext
 {
     private AppSettings settings;
-    private PairingForm form;
+    private PairingWindow form;
+    private TrayMenu? trayMenu;
+    private SettingsWindow? settingsWindow;
     private readonly string directory;
     private readonly NotifyIcon tray;
     private readonly LaserOverlay overlay = new();
@@ -48,22 +51,24 @@ internal sealed class PointaContext : ApplicationContext
         tray = new NotifyIcon { Icon = Ui.CreateIcon(), Text = "映点 Pointa", Visible = true };
         tray.DoubleClick += (_, _) => ShowPairing();
         tray.BalloonTipClicked += (_, _) => ShowPairing();
+        tray.MouseUp += (_, e) => { if (e.Button == MouseButtons.Right && trayMenu is not null) trayMenu.IsOpen = true; };
         BuildTray();
         timer.Tick += Tick;
         timer.Start();
         NetworkChange.NetworkAddressChanged += NetworkChanged;
         SystemEvents.PowerModeChanged += PowerChanged;
         if (!background) form.Show();
-        form.BeginInvoke(async () =>
+        form.Dispatcher.InvokeAsync(async () =>
         {
             await RestartServerAsync();
             if (smokeDirectory is not null) await RunSmokeAsync();
         });
     }
 
-    private PairingForm CreateForm()
+    private PairingWindow CreateForm()
     {
-        var window = new PairingForm(settings);
+        var window = new PairingWindow(settings);
+        W.Application.Current.MainWindow = window;
         window.RefreshRequested += (_, _) => { host?.RefreshPairing(); RefreshUi(); };
         window.DisconnectRequested += (_, _) => { host?.Disconnect(); overlay.HidePointer(true); };
         window.SettingsRequested += (_, _) => OpenSettings();
@@ -74,7 +79,7 @@ internal sealed class PointaContext : ApplicationContext
     {
         if (exiting) return;
         form.Show();
-        form.WindowState = FormWindowState.Normal;
+        form.WindowState = W.WindowState.Normal;
         form.Activate();
     }
 
@@ -82,9 +87,9 @@ internal sealed class PointaContext : ApplicationContext
 
     public void Dispatch(Action action)
     {
-        if (exiting || form.IsDisposed) return;
-        try { if (form.InvokeRequired) form.BeginInvoke(action); else action(); }
-        catch (InvalidOperationException) when (exiting || form.IsDisposed) { }
+        if (exiting || form.IsClosed) return;
+        try { if (form.Dispatcher.CheckAccess()) action(); else form.Dispatcher.BeginInvoke(action); }
+        catch (InvalidOperationException) when (exiting || form.IsClosed) { }
     }
 
     private async Task RestartServerAsync()
@@ -146,7 +151,7 @@ internal sealed class PointaContext : ApplicationContext
                     var result = presentation.TryPage(direction == SlideDirection.Next, sessionCancellation);
                     return new SlideResult(result.Success, result.Success ? null : result.Code);
                 }
-                try { return form.InvokeRequired ? (SlideResult)form.Invoke(Page) : Page(); }
+                try { return form.Dispatcher.CheckAccess() ? Page() : form.Dispatcher.Invoke(Page); }
                 catch (InvalidOperationException) { return new SlideResult(false, "shutting_down"); }
             };
             current.StateChanged += () => Dispatch(() =>
@@ -180,8 +185,8 @@ internal sealed class PointaContext : ApplicationContext
         Dispatch(async () =>
         {
             if (completion.Task.IsCompleted) return;
-            using var approval = new ApprovalForm(settings, request);
-            using var cancelUi = cancellation.Register(() => Dispatch(() => { if (!approval.IsDisposed) approval.Close(); }));
+            using var approval = new ApprovalWindow(settings, request);
+            using var cancelUi = cancellation.Register(() => Dispatch(() => { if (!approval.IsClosed) approval.Close(); }));
             approval.Show();
             Notify(T("手机请求配对", "Phone pairing request"), request.DeviceName);
             completion.TrySetResult(await approval.Decision);
@@ -224,31 +229,33 @@ internal sealed class PointaContext : ApplicationContext
 
     private void BuildTray()
     {
-        var menu = new ContextMenuStrip();
-        menu.Items.Add(T("打开配对", "Open pairing"), null, (_, _) => ShowPairing());
-        var visible = new ToolStripMenuItem(T("允许显示激光", "Enable laser")) { Checked = overlayEnabled, CheckOnClick = true };
-        visible.CheckedChanged += (_, _) => { overlayEnabled = visible.Checked; overlay.SetEnabled(overlayEnabled); };
-        menu.Items.Add(visible);
-        menu.Items.Add(T("紧急隐藏并禁用激光", "Hide and disable laser"), null, (_, _) => { visible.Checked = false; overlay.HidePointer(true); });
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(T("允许当前演示窗口（3 秒后）", "Allow foreground slides (in 3 seconds)"), null, (_, _) =>
+        var menu = new TrayMenu();
+        menu.Add(T("打开配对", "Open pairing"), ShowPairing);
+        var visible = menu.Add(T("允许显示激光", "Enable laser"), () => { });
+        visible.IsCheckable = true; visible.IsChecked = overlayEnabled;
+        visible.Checked += (_, _) => { overlayEnabled = true; overlay.SetEnabled(true); };
+        visible.Unchecked += (_, _) => { overlayEnabled = false; overlay.SetEnabled(false); };
+        menu.Add(T("紧急隐藏并禁用激光", "Hide and disable laser"), () => { visible.IsChecked = false; overlay.HidePointer(true); });
+        menu.Items.Add(new System.Windows.Controls.Separator());
+        menu.Add(T("允许当前演示窗口（3 秒后）", "Allow foreground slides (in 3 seconds)"), () =>
         {
             form.Hide();
             armAt = DateTimeOffset.UtcNow.AddSeconds(3);
             Notify(T("选择演示窗口", "Choose presentation window"), T("请在 3 秒内切换到浏览器或 PDF 演示。", "Switch to your browser or PDF presentation within 3 seconds."));
         });
-        menu.Items.Add(T("取消窗口授权", "Clear presentation window"), null, (_, _) => presentation.ClearTarget());
-        menu.Items.Add(T("设置", "Settings"), null, (_, _) => OpenSettings());
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(T("退出映点", "Quit Pointa"), null, async (_, _) => await QuitAsync());
-        tray.ContextMenuStrip?.Dispose();
-        tray.ContextMenuStrip = menu;
+        menu.Add(T("取消窗口授权", "Clear presentation window"), () => presentation.ClearTarget());
+        menu.Add(T("设置", "Settings"), OpenSettings);
+        menu.Items.Add(new System.Windows.Controls.Separator());
+        menu.Add(T("退出映点", "Quit Pointa"), async () => await QuitAsync());
+        if (trayMenu is not null) trayMenu.IsOpen = false;
+        trayMenu = menu;
     }
 
     private void OpenSettings()
     {
+        if (settingsWindow is { IsClosed: false }) { settingsWindow.Activate(); return; }
         bool languageChanged = false;
-        using var dialog = new SettingsForm(settings, () => host, (language, startup) =>
+        using var dialog = new SettingsWindow(settings, () => host, (language, startup) =>
         {
             var next = settings.WithGeneralPreferences(language, startup);
             next.ApplyStartup();
@@ -257,10 +264,14 @@ internal sealed class PointaContext : ApplicationContext
             languageChanged = next.Language != settings.Language;
             settings = next;
         });
-        if (dialog.ShowDialog(form.Visible ? form : null) != DialogResult.OK) return;
+        settingsWindow = dialog;
+        dialog.Closed += (_, _) => settingsWindow = null;
+        if (form.IsVisible) dialog.Owner = form;
+        dialog.ShowDialog();
+        if (!dialog.Saved) return;
         if (languageChanged)
         {
-            var wasVisible = form.Visible;
+            var wasVisible = form.IsVisible;
             form.Exiting = true;
             form.Close();
             form.Dispose();
@@ -341,42 +352,18 @@ internal sealed class PointaContext : ApplicationContext
                 throw new InvalidOperationException("Corrupt settings were overwritten or accepted.");
             using (var icon = Ui.CreateIcon())
             using (var iconFile = File.Create(Path.Combine(smokeDirectory!, "Pointa.ico"))) icon.Save(iconFile);
-            var p = host.Pairing;
-            form.UpdatePairing(p.QrPayload, p.Code, p.ExpiresAt, true, null, p.Host);
-            CheckPairingLayout(form);
-            form.SavePreview(Path.Combine(smokeDirectory!, "pairing-window.png"));
-            using (var english = new PairingForm(new AppSettings { Language = "en" }))
-            {
-                _ = english.Handle;
-                english.Show();
-                english.UpdatePairing(p.QrPayload, p.Code, p.ExpiresAt, true, null, p.Host);
-                CheckPairingLayout(english);
-                english.SavePreview(Path.Combine(smokeDirectory!, "pairing-window-en.png"));
-            }
-            foreach (var language in new[] { "zh", "en" })
-            {
-                string? savedLanguage = null;
-                using var options = new SettingsForm(new AppSettings { Language = language }, () => host, (selected, _) => savedLanguage = selected);
-                _ = options.Handle;
-                options.Show();
-                var devices = new[] { new PairedDevice("preview", "演示手机 · Presentation phone", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow) };
-                options.RenderDevices(devices, "preview");
-                SaveWindow(options, Path.Combine(smokeDirectory!, $"settings-window-{language}.png"));
-                var controls = Descendants(options).ToArray();
-                if (controls.OfType<ComboBox>().Count() != 1 || controls.OfType<CheckBox>().Count() != 1 ||
-                    controls.OfType<NumericUpDown>().Any() || controls.OfType<TextBox>().Any() || !controls.Any(x => x.Name == "trusted-devices"))
-                    throw new InvalidOperationException("Settings contains removed controls or lacks devices.");
-                options.RenderDevices([], null);
-                SaveWindow(options, Path.Combine(smokeDirectory!, $"settings-empty-{language}.png"));
-                ((Button)controls.Single(x => x.Name == "save-settings")).PerformClick();
-                if (savedLanguage != language) throw new InvalidOperationException("Settings Save was not invoked.");
-            }
+            var laser = trayMenu!.Items.OfType<System.Windows.Controls.MenuItem>().Single(item => item.IsCheckable);
+            laser.IsChecked = false;
+            if (overlayEnabled) throw new InvalidOperationException("Tray uncheck did not disable laser.");
+            laser.IsChecked = true;
+            if (!overlayEnabled) throw new InvalidOperationException("Tray check did not enable laser.");
+            await UiSelfCheck.RunAsync(host, trayMenu, smokeDirectory!);
             var beforeMouse = Cursor.Position;
             overlay.MovePointer(.25, .75);
             await Task.Delay(100);
             overlay.HidePointer(true);
             if (Cursor.Position != beforeMouse) throw new InvalidOperationException("Pointer moved the system cursor.");
-            File.WriteAllText(Path.Combine(smokeDirectory!, "smoke-result.txt"), "PASS: host started; LAN selection and uninstalled firewall rule scope checked without changing firewall policy; native structs, mapping, foreground policies, overlay styles/focus/mouse/idle/expiry checks passed; settings persistence, corrupt-file preservation and phone effect preservation passed; refresh placement, simplified settings and Save checked; Chinese/English pairing + merged settings rendered.");
+            File.WriteAllText(Path.Combine(smokeDirectory!, "smoke-result.txt"), "PASS: host started; LAN selection and uninstalled firewall rule scope checked without changing firewall policy; native structs, mapping, foreground policies, overlay styles/focus/mouse/idle/expiry checks passed; settings persistence, corrupt-file preservation and phone effect preservation passed; WPF refresh and save callbacks, language dropdown, checkbox and tray laser toggle checked; official Fluent templates and light/dark Chinese/English windows and popups rendered.");
         }
         catch (Exception ex)
         {
@@ -384,26 +371,6 @@ internal sealed class PointaContext : ApplicationContext
             File.WriteAllText(Path.Combine(smokeDirectory!, "smoke-result.txt"), "FAIL: " + ex);
         }
         await QuitAsync();
-    }
-
-    private static IEnumerable<Control> Descendants(Control parent) => parent.Controls.Cast<Control>()
-        .SelectMany(child => new[] { child }.Concat(Descendants(child)));
-
-    private static void CheckPairingLayout(PairingForm window)
-    {
-        var controls = Descendants(window).ToArray();
-        var refresh = controls.Single(x => x.Name == "refresh-pairing");
-        var settings = controls.Single(x => x.Name == "open-settings");
-        if (refresh.Parent?.Name != "overlay-status" || refresh.Left <= refresh.Parent.Width / 2 ||
-            refresh.Parent.Bottom >= settings.Top || window.Controls.OfType<Button>().Count() != 2)
-            throw new InvalidOperationException("Pairing actions are in the wrong position.");
-    }
-
-    private static void SaveWindow(Form window, string path)
-    {
-        using var bitmap = new Bitmap(window.Width, window.Height);
-        window.DrawToBitmap(bitmap, new Rectangle(0, 0, window.Width, window.Height));
-        bitmap.Save(path);
     }
 
     private async Task QuitAsync()
@@ -418,7 +385,7 @@ internal sealed class PointaContext : ApplicationContext
         try { if (host is not null) await host.DisposeAsync(); host = null; }
         finally { serverGate.Release(); }
         tray.Visible = false;
-        tray.ContextMenuStrip?.Dispose();
+        if (trayMenu is not null) trayMenu.IsOpen = false;
         tray.Icon?.Dispose();
         tray.Dispose();
         overlay.Dispose();
@@ -426,7 +393,7 @@ internal sealed class PointaContext : ApplicationContext
         form.Close();
         form.Dispose();
         timer.Dispose();
-        ExitThread();
+        W.Application.Current.Shutdown();
     }
 
     private string T(string zh, string en) => settings.T(zh, en);
