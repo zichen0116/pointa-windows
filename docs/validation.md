@@ -70,3 +70,5 @@ Android 已完成 JVM→C# QR/SRP/resume/revoke/控制/显示器变化的真实�
 证据位于 `artifacts/v0.1.3-ui-smoke/`。托盘菜单文字来自真实中文菜单实例，因此 `tray-*-en.png` 的内容仍为中文，文件名后缀只表示当时配对/设置窗口测试的语言。UI 渲染与自检不替代真实手机长期控制、所有 DPI/高对比度组合或发布安全验收。
 
 自包含目录执行同组 smoke 通过。原安装已备份后更新；后台启动监听实际 WLAN 与回环地址，新版正常退出返回 0 并成功重启。桌面自动化两次激活窗口均返回 `failed to activate captured window`；只读 UIA 可读到新的 WPF 控件、真实 IP 和配对状态，但截图为黑色。因此未把实机右键、鼠标悬停或键盘操作记录为通过；对应弹层与回调目前由隔离进程自动化覆盖。
+
+同日后续检查：用户继续后，窗口激活与截图恢复可用。此时 Windows 的 AppsUseLightTheme/SystemUsesLightTheme 均为 1，实际主窗与设置正确显示浅色 Fluent。通过桌面工具打开语言列表，方向键移动焦点至 English、Esc 关闭列表；点选启动复选框确认 Fluent 选中外观，再取消设置。读取配置确认语言仍为 zh、StartWithWindows 仍为 false。此次未完成从系统托盘实际右键展开的人工路径；该菜单的样式、圆角与启用勾选仍由前述自动化覆盖。
