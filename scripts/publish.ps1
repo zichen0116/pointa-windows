@@ -32,7 +32,10 @@ try {
     }
     & $dotnetExecutable publish src/Pointa.Windows/Pointa.Windows.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=false -p:PublishTrimmed=false --output $publishDirectory --nologo
     if ($LASTEXITCODE -ne 0) { throw "Publish failed (exit $LASTEXITCODE)." }
-    foreach ($file in @('Pointa.exe', 'coreclr.dll', 'hostfxr.dll', 'Microsoft.AspNetCore.Server.Kestrel.Core.dll', 'PresentationFramework.Fluent.dll', 'PresentationCore.dll')) {
+    # Skia's native symbols add ~96 MB and are only needed for native debugging.
+    $skiaSymbols = Join-Path $publishDirectory 'libSkiaSharp.pdb'
+    if (Test-Path -LiteralPath $skiaSymbols) { Remove-Item -LiteralPath $skiaSymbols -Force }
+    foreach ($file in @('Pointa.exe', 'coreclr.dll', 'hostfxr.dll', 'Microsoft.AspNetCore.Server.Kestrel.Core.dll', 'PresentationFramework.Fluent.dll', 'PresentationCore.dll', 'SkiaSharp.dll', 'libSkiaSharp.dll')) {
         if (-not (Test-Path -LiteralPath (Join-Path $publishDirectory $file))) { throw "Incomplete self-contained publish: $file is missing." }
     }
 
@@ -49,7 +52,7 @@ try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $zip = [IO.Compression.ZipFile]::OpenRead($archive)
     try {
-        foreach ($file in @('Pointa.exe', 'coreclr.dll', 'licenses/dotnet-LICENSE.txt', 'docs/licenses.md')) {
+        foreach ($file in @('Pointa.exe', 'coreclr.dll', 'SkiaSharp.dll', 'libSkiaSharp.dll', 'licenses/dotnet-LICENSE.txt', 'docs/licenses.md', 'docs/third-party/lan-laser-pen-LICENSE.txt', 'docs/third-party/SkiaSharp-LICENSE.txt', 'docs/third-party/SkiaSharp-THIRD-PARTY-NOTICES.txt')) {
             if (-not ($zip.Entries | Where-Object { $_.FullName.Replace('\', '/') -eq $file })) {
                 throw "Incomplete zip: $file is missing."
             }

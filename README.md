@@ -1,13 +1,13 @@
 # 映点 Pointa · Windows
 
-手机演示翻页笔的 Windows 接收端：在独立透明覆盖层显示激光和拖尾，并向前台演示应用发送上一页/下一页。激光不移动系统鼠标，不抢前台焦点。产品受 [lan-laser-pen](https://github.com/fuxing0910-hue/lan-laser-pen) 启发，按本项目 PRD 与 V5 原型独立实现。
+手机演示翻页笔的 Windows 接收端：在独立透明覆盖层显示激光和拖尾，并向前台演示应用发送上一页/下一页。激光不移动系统鼠标，不抢前台焦点。产品受 [lan-laser-pen](https://github.com/fuxing0910-hue/lan-laser-pen) 启发；0.1.4 移植其网页贝塞尔拖尾，来源与许可见 [对齐说明](docs/reference-alignment.md)。
 
-**当前是 0.1.3 开发验证版。** 配套 [pointa-android](https://github.com/zichen0116/pointa-android) 已实现连接、翻页、触控和空中指针。构建、自测及 UI smoke 只证明其覆盖范围；真实手机扫码、双端操作、投影/多屏硬件、延迟、安装升级和安全外审均需各自验收，不能据此宣称产品已成熟。
+**当前是 0.1.4 开发验证版。** 配套 [pointa-android](https://github.com/zichen0116/pointa-android) 0.1.2 已实现连接、翻页、触控和空中指针。构建、自测及 UI smoke 只证明其覆盖范围；真实手机扫码、双端操作、投影/多屏硬件、延迟、安装升级和安全外审均需各自验收，不能据此宣称产品已成熟。
 
 ## 功能与技术
 
 - WPF 官方 Fluent 控件与系统明暗主题：配对窗、设置、确认窗及圆角托盘菜单；统一图标、设备授权/撤销与紧急隐藏。
-- 独立原生 layered window 激光、柔光和拖尾，鼠标穿透；前台应用保护及离散翻页去重。
+- 独立原生 layered window，Skia 渲染收尖贝塞尔拖尾及光点柔光，鼠标穿透；前台应用保护及离散翻页去重。
 - Kestrel TLS WebSocket；QR 证书指纹绑定和短效令牌；六位码 SRP-6a、证书绑定及 PC 批准。
 - 当前用户 DPAPI 保护本地信任数据；单活跃控制端、断线清理、UDP 发现。
 - C# / .NET 10；Windows 11 x64 优先，Windows 10 x64 兼容性待实测。无云账号、无公网中转、无默认遥测。
@@ -19,6 +19,8 @@
 0.1.3 将可见 UI 迁移为 .NET 10 自带的 WPF Fluent 主题，移除 WinForms 设置控件和自绘按钮，托盘也使用相同体系的 ContextMenu。展开语言列表、鼠标悬停、勾选与键盘焦点采用框架标准模板；系统深色模式下不再显示白色旧菜单。实现与验证范围见 [Fluent 迁移说明](docs/windows-ui-0.1.3.md)。
 
 ## 构建与自测
+
+0.1.4 对齐参考网页的贝塞尔曲线、沿路径变宽/增亮、停留渐隐和光点阴影；标准参数为光点直径 12 DIP、拖尾 500 ms、曲线张力 0.3。激光颜色由 Android 0.1.2 的主题决定，无单独颜色选项。原项目函数生成的几何基准与真实浏览器逐像素对比方法见 [参考算法对齐](docs/reference-alignment.md)。
 
 在 Windows 安装 .NET 10 SDK，用 PowerShell 从仓库根目录执行：
 

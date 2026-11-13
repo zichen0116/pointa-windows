@@ -16,11 +16,12 @@ public static class NativeSelfCheck
         Check(Marshal.SizeOf<OverlayNative.Blend>() == 4, "BLENDFUNCTION native size");
         var leftMonitor = new Rectangle(-3840, -400, 3840, 2160);
         Check(LaserOverlay.MapPoint(leftMonitor, 0, 0) == new PointF(-3840, -400), "negative monitor origin");
-        Check(LaserOverlay.MapPoint(leftMonitor, 1, 1) == new PointF(-1, 1759), "last pixel mapping");
+        Check(LaserOverlay.MapPoint(leftMonitor, 1, 1) == new PointF(0, 1760), "canvas edge mapping");
         Check(LaserOverlay.MapPoint(new Rectangle(0, 0, 1080, 1920), 0.5, 0.5)
-            == new PointF(539.5f, 959.5f), "portrait mapping");
-        Check(LaserOverlay.TrailOpacity(0, 500) == 1 && LaserOverlay.TrailOpacity(250, 500) == 0.5f
-            && LaserOverlay.TrailOpacity(501, 500) == 0 && LaserOverlay.TrailOpacity(0, 0) == 0, "trail lifecycle");
+            == new PointF(540, 960), "portrait mapping");
+        BezierTrail.Sample[] samples = [new(new(0, 0), 0)];
+        Check(BezierTrail.Fade(samples, 0, 500) == 1 && BezierTrail.Fade(samples, 250, 500) == .5
+            && BezierTrail.Fade(samples, 501, 500) == 0 && BezierTrail.Fade(samples, 0, 0) == 0, "trail lifecycle");
         Check(LaserOverlay.ParseColor("#FF6475").ToArgb() == Color.FromArgb(255, 100, 117).ToArgb(), "effect color");
         foreach (var invalid in new[] { "red", "#GG0000", "#00000000", "#00000 " })
         {

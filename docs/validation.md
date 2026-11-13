@@ -1,5 +1,16 @@
 # Windows 开发验证记录
 
+## 0.1.4 网页贝塞尔拖尾（2026-11-11/12）
+
+- 对齐用户选定的网页版本，源码来源、标准参数与产品适配见 [参考算法对齐](reference-alignment.md)。SkiaSharp 4.155.0 绘入现有 Win32 DIB，保留穿透、不抢焦点及生命周期保护。
+- Release 构建通过，0 警告、0 错误；322 项服务/协议/DPAPI 断言通过。
+- 原生/UI smoke 通过；原项目 12 组夹具的 3,606 项几何/宽度/透明度/渐隐断言通过。Edge 原函数实际 Canvas 输出与 Skia 逐像素对比，标准 1× 参数 Alpha 最大差 1/255。
+- 对比图片 `artifacts/v0.1.4-ui-smoke-user/comparison-*.png` 左为原网页、右为 Pointa；已检查白底曲线图，避免透明图片预览方式掩盖渐隐。结果在同目录 `trail-reference-result.txt`、`trail-raster-result.json`。
+- Windows smoke 需要当前用户的 DPAPI/桌面上下文；沙箱身份运行出现的 DPAPI“系统找不到指定文件”不记录为成功，当前用户复跑已通过。
+- 配套 Android 0.1.2 通过 42 项 JVM/设备测试，主题色、Toast、原位编辑和姿态映射的结果见其验证文档。
+
+分发脚本校验 Skia 托管/原生 DLL 与第三方许可均存在，排除约 96 MB 的原生 PDB。实际投影、多 DPI/HDR、长时间帧率、物理手机传感器与端到端延迟仍未完成验收。历史版本记录如下。
+
 日期：2026-11-05（Asia/Shanghai）。版本：0.1.0，Windows 首阶段开发构建。
 
 ## 已执行

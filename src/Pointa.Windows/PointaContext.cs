@@ -312,6 +312,7 @@ internal sealed class PointaContext : ApplicationContext
         {
             if (host is null) throw new InvalidOperationException("Server startup failed: " + lastDiagnostic);
             NativeSelfCheck.Run();
+            TrailReferenceChecks.Run(smokeDirectory!);
             NativeSelfCheck.RunOverlayChecks();
             var available = NetworkPolicy.GetAddresses();
             if (!available.Contains(IPAddress.Loopback) || available.Any(ip => !IPAddress.IsLoopback(ip) && !NetworkPolicy.IsLanV4(ip)))

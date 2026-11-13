@@ -10,7 +10,7 @@ internal sealed class AppSettings
     public string? ScreenName { get; set; }
     public bool StartWithWindows { get; set; }
     public string LaserColor { get; set; } = "#FF6475";
-    public int LaserSize { get; set; } = 16;
+    public int LaserSize { get; set; } = 12;
     public int TrailMs { get; set; } = 500;
     public string Smoothing { get; set; } = "standard";
 
