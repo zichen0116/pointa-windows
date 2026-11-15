@@ -7,7 +7,7 @@ namespace Pointa.Windows;
 internal sealed class PairingWindow : DesktopWindow
 {
     private readonly AppSettings settings;
-    private readonly C.TextBlock status, host, code, expiry, ready, detail, offline;
+    private readonly C.TextBlock status, host, code, expiry, offline;
     private readonly C.Image qr;
     private readonly C.Button address, copy, disconnect, qrButton;
     private string? currentAddress, currentQr;
@@ -19,14 +19,16 @@ internal sealed class PairingWindow : DesktopWindow
     internal C.Button RefreshButton { get; }
     internal C.Button SettingsButton { get; }
 
-    public PairingWindow(AppSettings settings) : base("映点 Pointa", 460)
+    public PairingWindow(AppSettings settings) : base("映点 Pointa", 520)
     {
         this.settings = settings;
+        ResizeMode = W.ResizeMode.CanResize;
+        MinWidth = 520; MinHeight = 410;
         status = Ui.Text(T("正在启动…", "Starting…"), 13);
-        var heading = Ui.Stack(Ui.Text("映点 Pointa", 25, true), status);
-        heading.Margin = new W.Thickness(16, 0, 0, 0);
-        var brand = new C.DockPanel { Margin = new W.Thickness(0, 0, 0, 20) };
-        brand.Children.Add(new C.Image { Source = Ui.Logo(), Width = 48, Height = 48 }); brand.Children.Add(heading);
+        var heading = Ui.Stack(Ui.Text("映点 Pointa", 22, true), status);
+        heading.Margin = new W.Thickness(12, 0, 0, 0);
+        var brand = new C.DockPanel();
+        brand.Children.Add(new C.Image { Source = Ui.Logo(), Width = 40, Height = 40 }); brand.Children.Add(heading);
         host = Ui.Text(Environment.MachineName, 12, muted: true);
         address = Ui.Button(T("请连接 Wi-Fi 或有线网络", "Connect to Wi-Fi or Ethernet"), () =>
         {
@@ -34,9 +36,13 @@ internal sealed class PairingWindow : DesktopWindow
             try { W.Clipboard.SetText(currentAddress); copiedIpUntil = DateTimeOffset.UtcNow.AddSeconds(2); address!.Content = T("电脑 IP 已复制", "Computer IP copied"); }
             catch (System.Runtime.InteropServices.ExternalException) { ClipboardBusy(); }
         });
-        address.HorizontalAlignment = W.HorizontalAlignment.Left;
+        address.HorizontalAlignment = W.HorizontalAlignment.Right;
+        address.FontSize = 12; address.MinHeight = 30; address.Padding = new W.Thickness(10, 4, 10, 4);
         System.Windows.Automation.AutomationProperties.SetName(address, T("复制电脑 IP", "Copy computer IP"));
-        address.Margin = new W.Thickness(0, 8, 0, 16);
+        address.Margin = new W.Thickness(0, 4, 0, 0);
+        host.TextAlignment = W.TextAlignment.Right;
+        var header = Ui.Row(brand, Ui.Stack(host, address), 204);
+        header.Margin = new W.Thickness(0, 0, 0, 18);
         qr = new C.Image { Width = 176, Height = 176, Stretch = System.Windows.Media.Stretch.Uniform };
         System.Windows.Media.RenderOptions.SetBitmapScalingMode(qr, System.Windows.Media.BitmapScalingMode.NearestNeighbor);
         qrButton = Ui.Button("", ShowQr);
@@ -57,20 +63,24 @@ internal sealed class PairingWindow : DesktopWindow
             try { W.Clipboard.SetText(currentCode); copiedCodeUntil = DateTimeOffset.UtcNow.AddSeconds(2); copy!.Content = T("已复制", "Copied"); }
             catch (System.Runtime.InteropServices.ExternalException) { ClipboardBusy(); }
         }, true);
-        copy.Margin = new W.Thickness(0, 18, 0, 0);
-        var pairing = Ui.Row(qrArea, Ui.Stack(Ui.Text(T("临时设备码", "Pairing code"), 12, muted: true), code, expiry, copy), 168);
-        ready = Ui.Text(T("激光覆盖层已就绪", "Laser overlay ready"), 13, true);
-        detail = Ui.Text(T("激光样式在手机端调整", "Adjust laser style on your phone"), 11, muted: true);
-        detail.Margin = new W.Thickness(0, 6, 0, 0);
-        RefreshButton = Ui.Button(T("刷新配对码", "Refresh code"), () => RefreshRequested?.Invoke(this, EventArgs.Empty));
+        copy.Margin = new W.Thickness(0, 14, 0, 0);
+        RefreshButton = Ui.Button(T("刷新设备码", "Refresh code"), () => RefreshRequested?.Invoke(this, EventArgs.Empty));
         RefreshButton.Name = "RefreshPairing";
-        var overlay = Ui.Row(Ui.Stack(ready, detail), RefreshButton, 126);
+        RefreshButton.Margin = new W.Thickness(0, 6, 0, 0);
+        var pairing = Ui.Row(qrArea, Ui.Stack(Ui.Text(T("临时设备码", "Pairing code"), 12, muted: true), code, expiry, copy, RefreshButton), 210);
         SettingsButton = Ui.Button(T("设置", "Settings"), () => SettingsRequested?.Invoke(this, EventArgs.Empty));
         disconnect = Ui.Button(T("断开连接", "Disconnect"), () => DisconnectRequested?.Invoke(this, EventArgs.Empty));
         disconnect.IsEnabled = false;
-        Content = Ui.Body(Ui.Stack(brand, host, address, Ui.Card(pairing), Ui.Card(overlay), Ui.Row(SettingsButton, disconnect, 192)));
+        var content = new C.Grid();
+        content.RowDefinitions.Add(new() { Height = W.GridLength.Auto });
+        content.RowDefinitions.Add(new() { Height = new W.GridLength(1, W.GridUnitType.Star) });
+        content.RowDefinitions.Add(new() { Height = W.GridLength.Auto });
+        var card = Ui.Card(pairing); pairing.VerticalAlignment = W.VerticalAlignment.Center;
+        var actions = Ui.Row(SettingsButton, disconnect, 210);
+        C.Grid.SetRow(card, 1); C.Grid.SetRow(actions, 2);
+        content.Children.Add(header); content.Children.Add(card); content.Children.Add(actions);
+        Content = Ui.Body(content);
         Closing += (_, e) => { if (!Exiting) { e.Cancel = true; Hide(); } };
-        StateChanged += (_, _) => { if (WindowState == W.WindowState.Minimized) { Hide(); WindowState = W.WindowState.Normal; } };
     }
 
     public void UpdatePairing(string payload, string pairingCode, DateTimeOffset expiresAt, bool lanAvailable, string? connectedName, string? ipAddress = null)
@@ -86,7 +96,7 @@ internal sealed class PairingWindow : DesktopWindow
         host.Text = connectedName is not null ? $"{Environment.MachineName}  ·  {connectedName}" : Environment.MachineName;
         host.ToolTip = host.Text;
         currentAddress = lanAvailable ? ipAddress : null;
-        if (now >= copiedIpUntil) address.Content = currentAddress is not null ? T($"电脑 IP：{currentAddress}  ·  复制", $"Computer IP: {currentAddress} · Copy") : T("请连接 Wi-Fi 或有线网络", "Connect to Wi-Fi or Ethernet");
+        if (now >= copiedIpUntil) address.Content = currentAddress is not null ? T($"{currentAddress}  ·  复制 IP", $"{currentAddress} · Copy IP") : T("请连接 Wi-Fi 或有线网络", "Connect to Wi-Fi or Ethernet");
         if (now >= copiedCodeUntil) copy.Content = T("复制设备码", "Copy code");
         address.IsEnabled = currentAddress is not null;
         copy.IsEnabled = lanAvailable && currentCode.Length == 6;
@@ -104,7 +114,7 @@ internal sealed class PairingWindow : DesktopWindow
     private void ShowQr()
     {
         if (qr.Visibility != W.Visibility.Visible || qr.Source is null) return;
-        using var zoom = new DesktopWindow(T("扫描二维码 · 两分钟内有效", "Scan QR · Valid for two minutes"), 520) { Owner = this };
+        using var zoom = new DesktopWindow(T("扫描二维码 · 三分钟内有效", "Scan QR · Valid for three minutes"), 520) { Owner = this };
         zoom.Content = new C.Border { Padding = new W.Thickness(20), Background = System.Windows.Media.Brushes.White,
             Child = new C.Image { Source = qr.Source, Width = 480, Height = 480 } };
         zoom.ShowDialog();
@@ -117,9 +127,8 @@ internal sealed class PairingWindow : DesktopWindow
         qrButton.Visibility = W.Visibility.Hidden;
         offline.Text = T("请检查网络后重试", "Check your network and retry");
         code.Text = "··· ···"; currentCode = ""; copy.IsEnabled = disconnect.IsEnabled = false; expiry.Text = "";
-        ready.Text = T("连接尚未就绪", "Connection is not ready"); detail.Text = message; detail.ToolTip = message;
+        status.ToolTip = message;
     }
-    public void SetOverlayStatus(string message) { ready.Text = message; ready.ToolTip = message; }
     public void SavePreview(string path) => Ui.SavePreview((W.FrameworkElement)Content, path);
     private void ClipboardBusy() => Ui.Message(this, T("剪贴板忙，请重试。", "Clipboard busy; retry."));
     private string T(string zh, string en) => settings.T(zh, en);

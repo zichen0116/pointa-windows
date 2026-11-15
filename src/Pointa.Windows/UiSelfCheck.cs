@@ -25,11 +25,20 @@ internal static class UiSelfCheck
                     await Task.Delay(200);
                     var refresh = window.RefreshButton.TranslatePoint(new W.Point(), window);
                     var buttons = window.SettingsButton.TranslatePoint(new W.Point(), window);
-                    Check(refresh.X > window.ActualWidth / 2 && refresh.Y < buttons.Y, "Refresh placement");
+                    Check(refresh.X + window.RefreshButton.ActualWidth / 2 > window.ActualWidth / 2 &&
+                        refresh.Y + window.RefreshButton.ActualHeight < buttons.Y, "Refresh placement in the code column");
                     var refreshCount = 0;
                     window.RefreshRequested += (_, _) => refreshCount++;
                     window.RefreshButton.RaiseEvent(new W.RoutedEventArgs(C.Button.ClickEvent));
                     Check(refreshCount == 1, "Refresh action");
+                    Check(window.ResizeMode == W.ResizeMode.CanResize && window.ShowInTaskbar, "Standard taskbar and resize behavior");
+                    window.WindowState = W.WindowState.Minimized;
+                    await Task.Delay(100);
+                    Check(window.IsVisible && window.WindowState == W.WindowState.Minimized, "Minimize keeps the window in the taskbar");
+                    window.WindowState = W.WindowState.Maximized;
+                    await Task.Delay(100);
+                    Check(window.WindowState == W.WindowState.Maximized, "Maximize works");
+                    window.WindowState = W.WindowState.Normal;
                     window.SavePreview(Path.Combine(directory, $"pairing-{label}-{language}.png"));
                     window.UpdatePairing(pairing.QrPayload, pairing.Code, pairing.ExpiresAt, false, null);
                     window.SavePreview(Path.Combine(directory, $"offline-{label}-{language}.png"));

@@ -119,7 +119,7 @@ public sealed class HostService : IAsyncDisposable
             var code = RandomNumberGenerator.GetInt32(1_000_000).ToString("D6", System.Globalization.CultureInfo.InvariantCulture);
             var host = options.BindAddresses.FirstOrDefault(x => !IPAddress.IsLoopback(x)) ?? options.BindAddresses[0];
             var uri = $"pointa://pair?v=1&host={host}&port={options.Port}&id={store.ServerId}&pair={id}&pin={certificatePin}&token={token}";
-            pairing = new(store.ServerId, options.DeviceName, host.ToString(), options.Port, certificatePin, token, code, id, DateTimeOffset.UtcNow.AddSeconds(120), uri);
+            pairing = new(store.ServerId, options.DeviceName, host.ToString(), options.Port, certificatePin, token, code, id, DateTimeOffset.UtcNow.AddMinutes(3), uri);
             pairingReserved = false;
             codeAttempts = 0;
     }

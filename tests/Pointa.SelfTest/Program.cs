@@ -87,7 +87,7 @@ internal static class Program
         var initial = host.Pairing;
         Check(initial.Code.Length == 6 && initial.Code.All(char.IsAsciiDigit), "six digit code");
         Check(initial.QrToken.Length == 43 && initial.CertificateSha256.Length == 64, "token and pin sizes");
-        Check(initial.ExpiresAt > DateTimeOffset.UtcNow.AddSeconds(110), "short pairing lifetime");
+        Check(initial.ExpiresAt > DateTimeOffset.UtcNow.AddSeconds(175) && initial.ExpiresAt <= DateTimeOffset.UtcNow.AddSeconds(180), "three-minute pairing lifetime");
         Check(initial.QrPayload.StartsWith("pointa://pair?v=1&") && initial.QrPayload.Contains(initial.QrToken), "QR URI");
         using (var udp = new UdpClient(AddressFamily.InterNetwork))
         {

@@ -37,7 +37,7 @@ internal sealed class PointaContext : ApplicationContext
         _ = form.Handle;
         overlay.SelectScreen(settings.ScreenName);
         overlay.UpdateEffect(settings.LaserColor, settings.LaserSize, settings.TrailMs, settings.Smoothing);
-        overlay.RenderingFailed += (_, error) => { lastDiagnostic = error; form.SetOverlayStatus(T("覆盖层绘制失败", "Overlay rendering failed")); };
+        overlay.RenderingFailed += (_, error) => { lastDiagnostic = error; Notify("Pointa", T("激光绘制失败，请重新启动映点。", "Laser rendering failed. Restart Pointa.")); };
         overlay.ScreenChanged += (_, _) =>
         {
             UpdateDisplay();
