@@ -23,15 +23,15 @@ internal sealed class PointaContext : ApplicationContext
     private HostService? host;
     private IReadOnlyList<IPAddress> addresses = [];
     private string? lastDiagnostic;
-    private bool exiting, overlayEnabled = true, restarting;
+    private bool exiting, restarting;
     private DateTimeOffset nextNetworkCheck;
-    private DateTimeOffset? armAt;
     private readonly string? smokeDirectory;
 
     public PointaContext(string directory, AppSettings settings, bool background, string? smokeDirectory)
     {
         this.directory = directory;
         this.settings = settings;
+        presentation.AllowPresentationApps = settings.AllowPresentationApps;
         this.smokeDirectory = smokeDirectory;
         form = CreateForm();
         _ = form.Handle;
@@ -202,12 +202,6 @@ internal sealed class PointaContext : ApplicationContext
             var allowed = NetworkPolicy.GetAddresses();
             if (!new HashSet<IPAddress>(allowed).SetEquals(addresses)) { _ = RestartServerAsync(); return; }
         }
-        if (armAt is not null && DateTimeOffset.UtcNow >= armAt)
-        {
-            armAt = null;
-            var result = presentation.ArmForegroundWindow();
-            Notify(T("演示窗口", "Presentation window"), result.Success ? T("已允许当前窗口翻页。", "Paging enabled for the current window.") : T("无法允许此窗口，请切到浏览器或 PDF。", "Switch to a browser or PDF window and try again."));
-        }
         if (host is null || restarting) return;
         if (host.Pairing.ExpiresAt <= DateTimeOffset.UtcNow) host.RefreshPairing();
         RefreshUi();
@@ -231,19 +225,6 @@ internal sealed class PointaContext : ApplicationContext
     {
         var menu = new TrayMenu();
         menu.Add(T("打开配对", "Open pairing"), ShowPairing);
-        var visible = menu.Add(T("允许显示激光", "Enable laser"), () => { });
-        visible.IsCheckable = true; visible.IsChecked = overlayEnabled;
-        visible.Checked += (_, _) => { overlayEnabled = true; overlay.SetEnabled(true); };
-        visible.Unchecked += (_, _) => { overlayEnabled = false; overlay.SetEnabled(false); };
-        menu.Add(T("紧急隐藏并禁用激光", "Hide and disable laser"), () => { visible.IsChecked = false; overlay.HidePointer(true); });
-        menu.Items.Add(new System.Windows.Controls.Separator());
-        menu.Add(T("允许当前演示窗口（3 秒后）", "Allow foreground slides (in 3 seconds)"), () =>
-        {
-            form.Hide();
-            armAt = DateTimeOffset.UtcNow.AddSeconds(3);
-            Notify(T("选择演示窗口", "Choose presentation window"), T("请在 3 秒内切换到浏览器或 PDF 演示。", "Switch to your browser or PDF presentation within 3 seconds."));
-        });
-        menu.Add(T("取消窗口授权", "Clear presentation window"), () => presentation.ClearTarget());
         menu.Add(T("设置", "Settings"), OpenSettings);
         menu.Items.Add(new System.Windows.Controls.Separator());
         menu.Add(T("退出映点", "Quit Pointa"), async () => await QuitAsync());
@@ -255,14 +236,15 @@ internal sealed class PointaContext : ApplicationContext
     {
         if (settingsWindow is { IsClosed: false }) { settingsWindow.Activate(); return; }
         bool languageChanged = false;
-        using var dialog = new SettingsWindow(settings, () => host, (language, startup) =>
+        using var dialog = new SettingsWindow(settings, () => host, (language, startup, allowPresentationApps) =>
         {
-            var next = settings.WithGeneralPreferences(language, startup);
+            var next = settings.WithGeneralPreferences(language, startup, allowPresentationApps);
             next.ApplyStartup();
             try { next.Save(directory); }
             catch { settings.ApplyStartup(); throw; }
             languageChanged = next.Language != settings.Language;
             settings = next;
+            presentation.AllowPresentationApps = next.AllowPresentationApps;
         });
         settingsWindow = dialog;
         dialog.Closed += (_, _) => settingsWindow = null;
@@ -297,7 +279,8 @@ internal sealed class PointaContext : ApplicationContext
 
     private void NetworkChanged(object? sender, EventArgs args) => Dispatch(async () =>
     {
-        if (!restarting) await RestartServerAsync();
+        IReadOnlyList<IPAddress> allowed = smokeDirectory is null ? NetworkPolicy.GetAddresses() : [IPAddress.Loopback];
+        if (!restarting && (host is null || !new HashSet<IPAddress>(allowed).SetEquals(addresses))) await RestartServerAsync();
     });
     private void PowerChanged(object sender, PowerModeChangedEventArgs args) => Dispatch(async () =>
     {
@@ -341,8 +324,8 @@ internal sealed class PointaContext : ApplicationContext
             sample.ScreenName = "preserved-display";
             sample.LaserSize = 24;
             sample.Smoothing = "high";
-            var general = sample.WithGeneralPreferences("zh", true);
-            if (general.Language != "zh" || !general.StartWithWindows || sample.Language != "en" || sample.StartWithWindows ||
+            var general = sample.WithGeneralPreferences("zh", true, false);
+            if (general.Language != "zh" || !general.StartWithWindows || general.AllowPresentationApps || !sample.AllowPresentationApps || sample.Language != "en" || sample.StartWithWindows ||
                 general.LaserColor != sample.LaserColor || general.LaserSize != sample.LaserSize || general.TrailMs != sample.TrailMs ||
                 general.Smoothing != sample.Smoothing || general.ScreenName != sample.ScreenName)
                 throw new InvalidOperationException("Desktop settings overwrote phone-controlled laser preferences.");
@@ -353,18 +336,22 @@ internal sealed class PointaContext : ApplicationContext
                 throw new InvalidOperationException("Corrupt settings were overwritten or accepted.");
             using (var icon = Ui.CreateIcon())
             using (var iconFile = File.Create(Path.Combine(smokeDirectory!, "Pointa.ico"))) icon.Save(iconFile);
-            var laser = trayMenu!.Items.OfType<System.Windows.Controls.MenuItem>().Single(item => item.IsCheckable);
-            laser.IsChecked = false;
-            if (overlayEnabled) throw new InvalidOperationException("Tray uncheck did not disable laser.");
-            laser.IsChecked = true;
-            if (!overlayEnabled) throw new InvalidOperationException("Tray check did not enable laser.");
+            if (trayMenu!.Items.OfType<System.Windows.Controls.MenuItem>().Count() != 3 ||
+                trayMenu.Items.OfType<System.Windows.Controls.MenuItem>().Any(item => item.IsCheckable))
+                throw new InvalidOperationException("Tray must only expose open, settings and quit.");
+            var originalHost = host;
+            var originalPairing = host.Pairing.PairingId;
+            NetworkChanged(null, EventArgs.Empty);
+            await Task.Delay(100);
+            if (host != originalHost || host.Pairing.PairingId != originalPairing)
+                throw new InvalidOperationException("An unchanged network notification restarted pairing.");
             await UiSelfCheck.RunAsync(host, trayMenu, smokeDirectory!);
             var beforeMouse = Cursor.Position;
             overlay.MovePointer(.25, .75);
             await Task.Delay(100);
             overlay.HidePointer(true);
             if (Cursor.Position != beforeMouse) throw new InvalidOperationException("Pointer moved the system cursor.");
-            File.WriteAllText(Path.Combine(smokeDirectory!, "smoke-result.txt"), "PASS: host started; LAN selection and uninstalled firewall rule scope checked without changing firewall policy; native structs, mapping, foreground policies, overlay styles/focus/mouse/idle/expiry checks passed; settings persistence, corrupt-file preservation and phone effect preservation passed; WPF refresh and save callbacks, language dropdown, checkbox and tray laser toggle checked; official Fluent templates and light/dark Chinese/English windows and popups rendered.");
+            File.WriteAllText(Path.Combine(smokeDirectory!, "smoke-result.txt"), "PASS: host started; LAN selection and uninstalled firewall rule scope checked without changing firewall policy; native structs, mapping, foreground policies, overlay styles/focus/mouse/idle/expiry checks passed; settings persistence, corrupt-file preservation and phone effect preservation passed; WPF refresh and save callbacks, language dropdown, startup/control options and minimal tray checked; unchanged network notification preserves the host; official Fluent templates and light/dark Chinese/English windows and popups rendered.");
         }
         catch (Exception ex)
         {

@@ -11,7 +11,7 @@ internal sealed class TrayMenu : System.Windows.Controls.ContextMenu
     public TrayMenu()
     {
         SetResourceReference(StyleProperty, typeof(System.Windows.Controls.ContextMenu));
-        MinWidth = 288; FontSize = 14;
+        MinWidth = 220; FontSize = 14;
         Placement = PlacementMode.MousePoint;
         Opened += (_, _) =>
         {

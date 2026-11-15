@@ -9,16 +9,18 @@ internal sealed class AppSettings
     public string Language { get; set; } = CultureInfo.CurrentUICulture.Name.StartsWith("zh") ? "zh" : "en";
     public string? ScreenName { get; set; }
     public bool StartWithWindows { get; set; }
+    public bool AllowPresentationApps { get; set; } = true;
     public string LaserColor { get; set; } = "#FF6475";
     public int LaserSize { get; set; } = 12;
     public int TrailMs { get; set; } = 500;
     public string Smoothing { get; set; } = "standard";
 
-    public AppSettings WithGeneralPreferences(string language, bool startup)
+    public AppSettings WithGeneralPreferences(string language, bool startup, bool allowPresentationApps)
     {
         var next = (AppSettings)MemberwiseClone();
         next.Language = language;
         next.StartWithWindows = startup;
+        next.AllowPresentationApps = allowPresentationApps;
         return next;
     }
 

@@ -8,41 +8,16 @@ namespace Pointa.Windows.Native;
 public sealed class PresentationController
 {
     private readonly int _uiThread = Environment.CurrentManagedThreadId;
-    private WindowIdentity? _target;
     private long _lastPage = -1000;
-
-    public string TargetDescription => _target is { } target
-        ? $"{target.ProcessName} · {target.Title}"
-        : "PowerPoint / WPS 放映（自动识别）";
-
-    public (bool Success, string Code) ArmForegroundWindow()
-    {
-        EnsureUiThread();
-        var foreground = ReadForeground();
-        if (foreground is null) return (false, "no_foreground_window");
-        if (!IsAutomaticTarget(foreground.ProcessName, foreground.ClassName)
-            && !CanArmProcess(foreground.ProcessName)) return (false, "target_not_supported");
-        _target = foreground;
-        return (true, "target_armed");
-    }
-
-    public void ClearTarget()
-    {
-        EnsureUiThread();
-        _target = null;
-    }
+    public bool AllowPresentationApps { get; set; } = true;
 
     public (bool Success, string Code) TryPage(bool next, CancellationToken cancellation = default)
     {
         EnsureUiThread();
         var foreground = ReadForeground();
         if (foreground is null) return (false, "no_foreground_window");
-        var automatic = IsAutomaticTarget(foreground.ProcessName, foreground.ClassName);
-        if (!automatic && (_target is null || !SameWindow(_target, foreground)))
+        if (!IsAllowedTarget(foreground.ProcessName, foreground.ClassName, AllowPresentationApps))
             return (false, "presentation_not_focused");
-        // A browser tab or document change needs fresh consent, even when its HWND stays the same.
-        if (!automatic && !string.Equals(_target!.Title, foreground.Title, StringComparison.Ordinal))
-            return (false, "target_changed");
         if (Environment.TickCount64 - _lastPage < 180) return (false, "page_cooldown");
         foreach (var key in new[] { 0x10, 0x11, 0x12, 0x5B, 0x5C, 0x25, 0x27 })
             if ((InputNative.GetAsyncKeyState(key) & 0x8000) != 0) return (false, "keyboard_busy");
@@ -60,17 +35,15 @@ public sealed class PresentationController
         return (false, "input_blocked");
     }
 
-    private static bool SameWindow(WindowIdentity expected, WindowIdentity actual) =>
-        expected.Handle == actual.Handle && expected.ProcessId == actual.ProcessId
-        && expected.StartTime == actual.StartTime && expected.ClassName == actual.ClassName;
+    internal static bool IsAllowedTarget(string processName, string className, bool allowPresentationApps) =>
+        IsAutomaticTarget(processName, className) || allowPresentationApps && IsPresentationProcess(processName);
 
-    // shortcut: WPS builds with another slideshow class need explicit arming until verified on that build.
     internal static bool IsAutomaticTarget(string processName, string className) =>
         (processName.Equals("POWERPNT", StringComparison.OrdinalIgnoreCase)
             || processName.Equals("wpp", StringComparison.OrdinalIgnoreCase))
         && className.Equals("screenClass", StringComparison.OrdinalIgnoreCase);
 
-    internal static bool CanArmProcess(string processName) => processName.ToLowerInvariant() is
+    internal static bool IsPresentationProcess(string processName) => processName.ToLowerInvariant() is
         "msedge" or "chrome" or "firefox" or "brave" or "vivaldi" or "opera" or "arc"
         or "acrord32" or "acrobat" or "sumatrapdf" or "foxitpdfreader" or "foxitreader" or "pdfxedit"
         or "wpp" or "powerpnt";
@@ -85,11 +58,8 @@ public sealed class PresentationController
         {
             using var process = Process.GetProcessById(checked((int)processId));
             var className = new StringBuilder(256);
-            var title = new StringBuilder(1024);
             if (InputNative.GetClassName(handle, className, className.Capacity) == 0) return null;
-            InputNative.GetWindowText(handle, title, title.Capacity);
-            return new(handle, processId, process.StartTime.ToUniversalTime().Ticks,
-                process.ProcessName, className.ToString(), title.ToString());
+            return new(handle, process.ProcessName, className.ToString());
         }
         catch (Exception exception) when (exception is Win32Exception or ArgumentException or InvalidOperationException)
         {
@@ -103,8 +73,7 @@ public sealed class PresentationController
             throw new InvalidOperationException("PresentationController must be called on its UI thread.");
     }
 
-    private sealed record WindowIdentity(nint Handle, uint ProcessId, long StartTime,
-        string ProcessName, string ClassName, string Title);
+    private sealed record WindowIdentity(nint Handle, string ProcessName, string ClassName);
 }
 
 internal static class InputNative

@@ -32,9 +32,13 @@ public static class NativeSelfCheck
         Check(PresentationController.IsAutomaticTarget("POWERPNT", "screenClass"), "PowerPoint slideshow accepted");
         Check(!PresentationController.IsAutomaticTarget("POWERPNT", "PPTFrameClass"), "PowerPoint editor denied");
         Check(!PresentationController.IsAutomaticTarget("wpp", "OpusApp"), "WPS editor denied");
-        Check(!PresentationController.IsAutomaticTarget("chrome", "Chrome_WidgetWin_1"), "browser needs consent");
-        Check(PresentationController.CanArmProcess("msedge") && PresentationController.CanArmProcess("Acrobat")
-            && !PresentationController.CanArmProcess("notepad"), "explicit target process boundary");
+        Check(PresentationController.IsAllowedTarget("chrome", "Chrome_WidgetWin_1", true)
+            && PresentationController.IsAllowedTarget("Acrobat", "AcrobatSDIWindow", true)
+            && PresentationController.IsAllowedTarget("POWERPNT", "PPTFrameClass", true), "Presentation apps work without per-window approval");
+        Check(!PresentationController.IsAllowedTarget("chrome", "Chrome_WidgetWin_1", false)
+            && PresentationController.IsAllowedTarget("POWERPNT", "screenClass", false), "Optional slideshow-only restriction");
+        Check(!PresentationController.IsAllowedTarget("notepad", "Notepad", true)
+            && !PresentationController.IsAllowedTarget("cmd", "ConsoleWindowClass", true), "Unrelated foreground applications stay excluded");
         var down = InputNative.Keyboard(0x27, false);
         var up = InputNative.Keyboard(0x27, true);
         Check(down.Type == 1 && down.Data.Keyboard.Key == 0x27 && down.Data.Keyboard.Flags == 1

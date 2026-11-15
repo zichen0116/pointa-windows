@@ -23,6 +23,7 @@ internal static class UiSelfCheck
                     var pairing = host.Pairing;
                     window.UpdatePairing(pairing.QrPayload, pairing.Code, pairing.ExpiresAt, true, null, pairing.Host);
                     await Task.Delay(200);
+                    Check(window.Width == 416 && window.MinWidth == 416, "Main window is twenty percent narrower");
                     var refresh = window.RefreshButton.TranslatePoint(new W.Point(), window);
                     var buttons = window.SettingsButton.TranslatePoint(new W.Point(), window);
                     Check(refresh.X + window.RefreshButton.ActualWidth / 2 > window.ActualWidth / 2 &&
@@ -44,11 +45,13 @@ internal static class UiSelfCheck
                     window.SavePreview(Path.Combine(directory, $"offline-{label}-{language}.png"));
                     window.UpdatePairing(pairing.QrPayload, pairing.Code, pairing.ExpiresAt, true, null, pairing.Host);
 
-                    string? saved = null; bool? startup = null;
-                    using var options = new SettingsWindow(settings, () => host, (value, start) => { saved = value; startup = start; });
+                    string? saved = null; bool? startup = null; bool? allowApps = null;
+                    using var options = new SettingsWindow(settings, () => host, (value, start, apps) => { saved = value; startup = start; allowApps = apps; });
                     options.Show();
                     options.RenderDevices([new PairedDevice("preview", "演示手机 · Presentation phone", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow)], "preview");
                     options.Startup.IsChecked = true;
+                    Check(options.AllowPresentationApps.IsChecked == true, "Presentation apps allowed by default");
+                    options.AllowPresentationApps.IsChecked = false;
                     await Task.Delay(200);
                     Check(options.LanguageSelector.Template is not null && options.Startup.Template is not null &&
                         options.TryFindResource("DefaultComboBoxStyle") is W.Style && options.TryFindResource("DefaultCheckBoxStyle") is W.Style,
@@ -62,7 +65,7 @@ internal static class UiSelfCheck
                     options.LanguageSelector.IsDropDownOpen = false;
                     options.LanguageSelector.SelectedIndex = language == "zh" ? 1 : 0;
                     options.SaveButton.RaiseEvent(new W.RoutedEventArgs(C.Button.ClickEvent));
-                    Check(options.Saved && saved == (language == "zh" ? "en" : "zh") && startup == true, "Language/startup save callback");
+                    Check(options.Saved && saved == (language == "zh" ? "en" : "zh") && startup == true && allowApps == false, "Language/startup/control save callback");
 
                     using (var approval = new ApprovalWindow(settings, new PairingRequest("演示手机 · Presentation phone", "127.0.0.1", "QR")))
                     {

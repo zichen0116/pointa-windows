@@ -15,13 +15,14 @@ internal sealed class SettingsWindow : DesktopWindow
     private readonly AppSettings settings;
     private PairedDevice[] shownDevices = [];
     private string? shownConnected;
-    private readonly Action<string, bool> save;
+    private readonly Action<string, bool, bool> save;
     internal C.ComboBox LanguageSelector { get; }
     internal C.CheckBox Startup { get; }
+    internal C.CheckBox AllowPresentationApps { get; }
     internal C.Button SaveButton { get; }
     public bool Saved { get; private set; }
 
-    public SettingsWindow(AppSettings settings, Func<HostService?> getHost, Action<string, bool> save)
+    public SettingsWindow(AppSettings settings, Func<HostService?> getHost, Action<string, bool, bool> save)
         : base(settings.T("映点 · 设置", "Pointa · Settings"), 500)
     {
         this.settings = settings; this.getHost = getHost; this.save = save;
@@ -37,7 +38,10 @@ internal sealed class SettingsWindow : DesktopWindow
             IsChecked = settings.StartWithWindows, Margin = new W.Thickness(0, 18, 0, 18), MinHeight = 32 };
         var networkRow = Ui.Row(Ui.Text(T("局域网连接", "Local network")),
             Ui.Button(T("设置防火墙", "Configure firewall"), () => FirewallAccess.Request(this, settings)), 184);
-        var preferences = Ui.Card(Ui.Stack(languageRow, Startup, networkRow));
+        AllowPresentationApps = new C.CheckBox {
+            Content = T("浏览器、PDF 和演示编辑窗口可直接翻页", "Allow browsers, PDFs and presentation editors"),
+            IsChecked = settings.AllowPresentationApps, MinHeight = 36, Margin = new W.Thickness(0, 0, 0, 16) };
+        var preferences = Ui.Card(Ui.Stack(languageRow, Startup, AllowPresentationApps, networkRow));
         clear = Ui.Button(T("清空授权", "Revoke all"), () =>
         {
             if (Ui.Confirm(this, T("撤销所有手机的控制权限？", "Revoke every paired phone?"))) ChangeDevices(host => host.ClearDevices());
@@ -66,7 +70,7 @@ internal sealed class SettingsWindow : DesktopWindow
 
     private void Save()
     {
-        try { save(LanguageSelector.SelectedIndex == 0 ? "zh" : "en", Startup.IsChecked == true); Saved = true; Close(); }
+        try { save(LanguageSelector.SelectedIndex == 0 ? "zh" : "en", Startup.IsChecked == true, AllowPresentationApps.IsChecked == true); Saved = true; Close(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         { Ui.Message(this, T("保存失败：", "Could not save: ") + ex.Message); }
     }

@@ -19,16 +19,16 @@ internal sealed class PairingWindow : DesktopWindow
     internal C.Button RefreshButton { get; }
     internal C.Button SettingsButton { get; }
 
-    public PairingWindow(AppSettings settings) : base("映点 Pointa", 520)
+    public PairingWindow(AppSettings settings) : base("映点 Pointa", 416)
     {
         this.settings = settings;
         ResizeMode = W.ResizeMode.CanResize;
-        MinWidth = 520; MinHeight = 410;
+        MinWidth = 416; MinHeight = 390;
         status = Ui.Text(T("正在启动…", "Starting…"), 13);
-        var heading = Ui.Stack(Ui.Text("映点 Pointa", 22, true), status);
-        heading.Margin = new W.Thickness(12, 0, 0, 0);
+        var heading = Ui.Stack(Ui.Text("映点 Pointa", 20, true), status);
+        heading.Margin = new W.Thickness(10, 0, 0, 0);
         var brand = new C.DockPanel();
-        brand.Children.Add(new C.Image { Source = Ui.Logo(), Width = 40, Height = 40 }); brand.Children.Add(heading);
+        brand.Children.Add(new C.Image { Source = Ui.Logo(), Width = 32, Height = 32 }); brand.Children.Add(heading);
         host = Ui.Text(Environment.MachineName, 12, muted: true);
         address = Ui.Button(T("请连接 Wi-Fi 或有线网络", "Connect to Wi-Fi or Ethernet"), () =>
         {
@@ -37,11 +37,11 @@ internal sealed class PairingWindow : DesktopWindow
             catch (System.Runtime.InteropServices.ExternalException) { ClipboardBusy(); }
         });
         address.HorizontalAlignment = W.HorizontalAlignment.Right;
-        address.FontSize = 12; address.MinHeight = 30; address.Padding = new W.Thickness(10, 4, 10, 4);
+        address.FontSize = 11; address.MinHeight = 30; address.Padding = new W.Thickness(8, 4, 8, 4);
         System.Windows.Automation.AutomationProperties.SetName(address, T("复制电脑 IP", "Copy computer IP"));
         address.Margin = new W.Thickness(0, 4, 0, 0);
         host.TextAlignment = W.TextAlignment.Right;
-        var header = Ui.Row(brand, Ui.Stack(host, address), 204);
+        var header = Ui.Row(brand, Ui.Stack(host, address), 168);
         header.Margin = new W.Thickness(0, 0, 0, 18);
         qr = new C.Image { Width = 176, Height = 176, Stretch = System.Windows.Media.Stretch.Uniform };
         System.Windows.Media.RenderOptions.SetBitmapScalingMode(qr, System.Windows.Media.BitmapScalingMode.NearestNeighbor);
@@ -67,7 +67,7 @@ internal sealed class PairingWindow : DesktopWindow
         RefreshButton = Ui.Button(T("刷新设备码", "Refresh code"), () => RefreshRequested?.Invoke(this, EventArgs.Empty));
         RefreshButton.Name = "RefreshPairing";
         RefreshButton.Margin = new W.Thickness(0, 6, 0, 0);
-        var pairing = Ui.Row(qrArea, Ui.Stack(Ui.Text(T("临时设备码", "Pairing code"), 12, muted: true), code, expiry, copy, RefreshButton), 210);
+        var pairing = Ui.Row(qrArea, Ui.Stack(Ui.Text(T("临时设备码", "Pairing code"), 12, muted: true), code, expiry, copy, RefreshButton), 144);
         SettingsButton = Ui.Button(T("设置", "Settings"), () => SettingsRequested?.Invoke(this, EventArgs.Empty));
         disconnect = Ui.Button(T("断开连接", "Disconnect"), () => DisconnectRequested?.Invoke(this, EventArgs.Empty));
         disconnect.IsEnabled = false;
@@ -76,10 +76,12 @@ internal sealed class PairingWindow : DesktopWindow
         content.RowDefinitions.Add(new() { Height = new W.GridLength(1, W.GridUnitType.Star) });
         content.RowDefinitions.Add(new() { Height = W.GridLength.Auto });
         var card = Ui.Card(pairing); pairing.VerticalAlignment = W.VerticalAlignment.Center;
-        var actions = Ui.Row(SettingsButton, disconnect, 210);
+        card.Padding = new W.Thickness(12);
+        var actions = Ui.Row(SettingsButton, disconnect);
+        actions.ColumnDefinitions[2].Width = new W.GridLength(1, W.GridUnitType.Star);
         C.Grid.SetRow(card, 1); C.Grid.SetRow(actions, 2);
         content.Children.Add(header); content.Children.Add(card); content.Children.Add(actions);
-        Content = Ui.Body(content);
+        var body = Ui.Body(content); body.Padding = new W.Thickness(16); Content = body;
         Closing += (_, e) => { if (!Exiting) { e.Cancel = true; Hide(); } };
     }
 
