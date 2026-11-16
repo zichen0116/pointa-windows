@@ -1,0 +1,20 @@
+name: 问题反馈 / Bug report
+description: 连接、控制或界面出了问题
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: 运行环境
+      description: 双端版本、手机型号/Android 版本、Windows 版本、演示软件和网络方式。不要上传配对码或凭据。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤与实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期结果与补充截图

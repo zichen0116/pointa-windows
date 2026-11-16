@@ -40,6 +40,8 @@ try {
     }
 
     Copy-Item -LiteralPath (Join-Path $repo 'README.md') -Destination $publishDirectory
+    Copy-Item -LiteralPath (Join-Path $repo 'README.en.md') -Destination $publishDirectory
+    Copy-Item -LiteralPath (Join-Path $repo 'LICENSE') -Destination $publishDirectory
     Copy-Item -LiteralPath (Join-Path $repo 'docs') -Destination (Join-Path $publishDirectory 'docs') -Recurse
     $licenseDirectory = New-Item -ItemType Directory -Path (Join-Path $publishDirectory 'licenses') -Force
     $dotnetDirectory = Split-Path $dotnetExecutable -Parent

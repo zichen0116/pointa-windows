@@ -18,6 +18,8 @@ internal sealed class PairingWindow : DesktopWindow
     public event EventHandler? DisconnectRequested;
     internal C.Button RefreshButton { get; }
     internal C.Button SettingsButton { get; }
+    internal C.Button AddressButton => address;
+    internal C.Image QrImage => qr;
 
     public PairingWindow(AppSettings settings) : base("映点 Pointa", 416)
     {
@@ -36,12 +38,12 @@ internal sealed class PairingWindow : DesktopWindow
             try { W.Clipboard.SetText(currentAddress); copiedIpUntil = DateTimeOffset.UtcNow.AddSeconds(2); address!.Content = T("电脑 IP 已复制", "Computer IP copied"); }
             catch (System.Runtime.InteropServices.ExternalException) { ClipboardBusy(); }
         });
-        address.HorizontalAlignment = W.HorizontalAlignment.Right;
-        address.FontSize = 11; address.MinHeight = 30; address.Padding = new W.Thickness(8, 4, 8, 4);
+        address.HorizontalAlignment = W.HorizontalAlignment.Stretch;
+        address.FontSize = 14; address.MinHeight = 44; address.Padding = new W.Thickness(8, 6, 8, 6);
         System.Windows.Automation.AutomationProperties.SetName(address, T("复制电脑 IP", "Copy computer IP"));
         address.Margin = new W.Thickness(0, 4, 0, 0);
         host.TextAlignment = W.TextAlignment.Right;
-        var header = Ui.Row(brand, Ui.Stack(host, address), 168);
+        var header = Ui.Row(brand, Ui.Stack(host, address), 176);
         header.Margin = new W.Thickness(0, 0, 0, 18);
         qr = new C.Image { Width = 176, Height = 176, Stretch = System.Windows.Media.Stretch.Uniform };
         System.Windows.Media.RenderOptions.SetBitmapScalingMode(qr, System.Windows.Media.BitmapScalingMode.NearestNeighbor);
@@ -98,7 +100,11 @@ internal sealed class PairingWindow : DesktopWindow
         host.Text = connectedName is not null ? $"{Environment.MachineName}  ·  {connectedName}" : Environment.MachineName;
         host.ToolTip = host.Text;
         currentAddress = lanAvailable ? ipAddress : null;
-        if (now >= copiedIpUntil) address.Content = currentAddress is not null ? T($"{currentAddress}  ·  复制 IP", $"{currentAddress} · Copy IP") : T("请连接 Wi-Fi 或有线网络", "Connect to Wi-Fi or Ethernet");
+        if (now >= copiedIpUntil)
+        {
+            if (address.Content is not C.TextBlock) address.Content = new C.TextBlock { TextWrapping = W.TextWrapping.Wrap, TextAlignment = W.TextAlignment.Center };
+            ((C.TextBlock)address.Content).Text = currentAddress is not null ? T($"{currentAddress}  ·  复制 IP", $"{currentAddress} · Copy IP") : T("请连接 Wi-Fi 或有线网络", "Connect to Wi-Fi or Ethernet");
+        }
         if (now >= copiedCodeUntil) copy.Content = T("复制设备码", "Copy code");
         address.IsEnabled = currentAddress is not null;
         copy.IsEnabled = lanAvailable && currentCode.Length == 6;

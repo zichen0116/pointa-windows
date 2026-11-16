@@ -24,6 +24,10 @@ internal static class UiSelfCheck
                     window.UpdatePairing(pairing.QrPayload, pairing.Code, pairing.ExpiresAt, true, null, pairing.Host);
                     await Task.Delay(200);
                     Check(window.Width == 416 && window.MinWidth == 416, "Main window is twenty percent narrower");
+                    var ip = window.AddressButton.TranslatePoint(new W.Point(), window);
+                    var qr = window.QrImage.TranslatePoint(new W.Point(), window);
+                    Check(ip.X >= window.ActualWidth * .45 && window.AddressButton.ActualWidth >= 176 &&
+                        window.AddressButton.ActualHeight >= 44 && ip.Y < qr.Y, "Large IP action fills the upper-right header");
                     var refresh = window.RefreshButton.TranslatePoint(new W.Point(), window);
                     var buttons = window.SettingsButton.TranslatePoint(new W.Point(), window);
                     Check(refresh.X + window.RefreshButton.ActualWidth / 2 > window.ActualWidth / 2 &&
