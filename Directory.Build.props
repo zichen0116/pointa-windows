@@ -3,7 +3,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <Version>0.1.7</Version>
+    <Version>0.1.8</Version>
     <Authors>Pointa contributors</Authors>
     <Product>映点 Pointa</Product>
     <Deterministic>true</Deterministic>

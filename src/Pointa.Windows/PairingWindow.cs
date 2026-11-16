@@ -39,7 +39,7 @@ internal sealed class PairingWindow : DesktopWindow
             catch (System.Runtime.InteropServices.ExternalException) { ClipboardBusy(); }
         });
         address.HorizontalAlignment = W.HorizontalAlignment.Stretch;
-        address.FontSize = 14; address.MinHeight = 44; address.Padding = new W.Thickness(8, 6, 8, 6);
+        address.FontSize = 14; address.Padding = new W.Thickness(8, 6, 8, 6);
         System.Windows.Automation.AutomationProperties.SetName(address, T("复制电脑 IP", "Copy computer IP"));
         address.Margin = new W.Thickness(0, 4, 0, 0);
         host.TextAlignment = W.TextAlignment.Right;
@@ -102,8 +102,9 @@ internal sealed class PairingWindow : DesktopWindow
         currentAddress = lanAvailable ? ipAddress : null;
         if (now >= copiedIpUntil)
         {
-            if (address.Content is not C.TextBlock) address.Content = new C.TextBlock { TextWrapping = W.TextWrapping.Wrap, TextAlignment = W.TextAlignment.Center };
+            if (address.Content is not C.TextBlock) address.Content = new C.TextBlock { TextTrimming = W.TextTrimming.CharacterEllipsis, TextAlignment = W.TextAlignment.Center };
             ((C.TextBlock)address.Content).Text = currentAddress is not null ? T($"{currentAddress}  ·  复制 IP", $"{currentAddress} · Copy IP") : T("请连接 Wi-Fi 或有线网络", "Connect to Wi-Fi or Ethernet");
+            address.ToolTip = currentAddress;
         }
         if (now >= copiedCodeUntil) copy.Content = T("复制设备码", "Copy code");
         address.IsEnabled = currentAddress is not null;

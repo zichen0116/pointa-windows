@@ -23,7 +23,7 @@ Screenshots are captured from the running application in an isolated test enviro
 
 ## Get started
 
-**Preview: Windows 0.1.7 / Android 0.1.5. Release packages are pending acceptance testing.**
+**Preview: Windows 0.1.8 / Android 0.1.5. Release packages are pending acceptance testing.**
 
 Get both apps from [Windows releases](https://github.com/zichen0116/pointa-windows/releases) and [Android releases](https://github.com/zichen0116/pointa-android/releases). Until packages are published, build from source or download artifacts from successful Actions runs (GitHub login required).
 
