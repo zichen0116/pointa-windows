@@ -2,7 +2,7 @@
 <h1 align="center">映点 Pointa</h1>
 <p align="center">把手机变成翻页笔。</p>
 <p align="center"><a href="README.en.md">English</a> · <a href="#开始使用">开始使用</a> · <a href="https://github.com/zichen0116/pointa-android">Android 端</a> · <a href="https://github.com/zichen0116/pointa-windows/issues">反馈问题</a></p>
-<p align="center"><a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-FF6475" alt="MIT license"></a> <img src="https://img.shields.io/badge/Android-8.0%2B-32B894" alt="Android 8.0+"> <img src="https://img.shields.io/badge/Windows-11_x64-4D95ED" alt="Windows 11 x64"> <img src="https://img.shields.io/badge/status-preview-D69A47" alt="Preview"></p>
+<p align="center"><a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-FF6475" alt="MIT license"></a> <img src="https://img.shields.io/badge/Android-8.0%2B-32B894" alt="Android 8.0+"> <img src="https://img.shields.io/badge/Windows-11_x64-4D95ED" alt="Windows 11 x64"> <img src="https://img.shields.io/badge/status-released-32B894" alt="Released"></p>
 
 ![Pointa — Your phone. Your presenter.](docs/media/pointa-banner.png)
 
@@ -32,14 +32,16 @@
 
 ## 开始使用
 
-**当前为预览版：Windows 0.1.8 / Android 0.1.5。正式安装包将在本轮验收后发布。**
+**正式 Release 已发布：Windows 0.1.8 / Android 0.1.5。**
 
 | 需要安装 | 获取方式 |
 | --- | --- |
 | Windows 接收端 | [发行页面](https://github.com/zichen0116/pointa-windows/releases) · [开发构建](https://github.com/zichen0116/pointa-windows/actions/workflows/build.yml) |
 | Android 遥控端 | [发行页面](https://github.com/zichen0116/pointa-android/releases) · [开发构建](https://github.com/zichen0116/pointa-android/actions/workflows/build.yml) |
 
-发行页面暂时没有安装包时，可自行构建，或在成功的 Actions 运行页面下载 Artifacts（需要登录 GitHub）。开发 APK 使用测试签名；Windows 安装包尚未代码签名。
+推荐从上方发行页面下载：Windows 选择 Setup 安装包或免安装 ZIP，手机选择 APK。Android Release 使用固定正式签名；Actions 开发包仍使用测试签名。Windows 安装包尚未代码签名。
+
+从旧版 debug APK 切换到正式 APK 时，因签名不同，需要先卸载测试包，再安装并重新配对；这会清除旧版手机端配置。后续正式版更新沿用同一签名。
 
 1. 在电脑和手机上分别安装并打开 Pointa。
 2. 连接同一个可互访的 Wi-Fi。也支持电脑连接手机热点。

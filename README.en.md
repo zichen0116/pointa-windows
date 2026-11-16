@@ -23,15 +23,15 @@ Screenshots are captured from the running application in an isolated test enviro
 
 ## Get started
 
-**Preview: Windows 0.1.8 / Android 0.1.5. Release packages are pending acceptance testing.**
+**Released: Windows 0.1.8 / Android 0.1.5.**
 
-Get both apps from [Windows releases](https://github.com/zichen0116/pointa-windows/releases) and [Android releases](https://github.com/zichen0116/pointa-android/releases). Until packages are published, build from source or download artifacts from successful Actions runs (GitHub login required).
+Get both apps from [Windows releases](https://github.com/zichen0116/pointa-windows/releases) and [Android releases](https://github.com/zichen0116/pointa-android/releases). Choose the Windows Setup or portable ZIP and the signed Android APK. Actions artifacts remain development builds.
 
 1. Connect the phone and computer to a mutually reachable LAN or a phone hotspot.
 2. Scan the Windows QR code, or enter its IP address and six-digit code. Codes expire after three minutes.
 3. Approve the first pairing on the computer, then focus your presentation application.
 
-Android 8+ and Windows 11 x64 are the primary targets. Windows 10 compatibility, additional sensor models and multi-monitor setups need further testing. Preview APKs use a development signing key; Windows packages are not code-signed.
+Android 8+ and Windows 11 x64 are the primary targets. Windows 10 compatibility, additional sensor models and multi-monitor setups need further testing. Release APKs use a persistent release signing key; Windows packages are not code-signed. Switching from a debug APK requires uninstalling the development app, which clears its local data, then installing and pairing again. Future release updates use the same signing key.
 
 ## Connection and compatibility
 
